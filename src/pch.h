@@ -15,6 +15,9 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 
+#include <dplay.h>
+#include <dpaddr.h>
+
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -23,6 +26,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <fstream>
+#include <iostream>
 #include <iterator>
 #include <iphlpapi.h>
 #include <memory>
