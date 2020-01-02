@@ -12,6 +12,7 @@ static IDirectPlay4A* _directPlay = nullptr;
 static DPSESSIONDESC2 _theSession;
 static DPID _localPlayer;
 static bool _sessionEnumTimeout;
+static bool _running = true;
 static std::ofstream _logFile("HiddenDragonLog.txt");
 
 static const char* GetErrorString(HRESULT hr)
@@ -48,6 +49,34 @@ static const char* GetErrorString(HRESULT hr)
 	TEST_ERROR_CODE(DPERR_TIMEOUT);
 	TEST_ERROR_CODE(DPERR_UNINITIALIZED);
 	TEST_ERROR_CODE(DPERR_USERCANCEL);
+#undef TEST_ERROR_CODE
+
+	return "Unknown";
+}
+
+static const char* GetSysMessageString(DWORD id)
+{
+#define TEST_TYPE_CODE(x) else if (id == x) return TO_STRING(#x)
+	if (id == -1)
+	{
+		return "probably not used for DirectPlay";
+	}
+	TEST_TYPE_CODE(DPSYS_ADDGROUPTOGROUP);
+	TEST_TYPE_CODE(DPSYS_ADDPLAYERTOGROUP);
+	TEST_TYPE_CODE(DPSYS_CHAT);
+	TEST_TYPE_CODE(DPSYS_CREATEPLAYERORGROUP);
+	TEST_TYPE_CODE(DPSYS_DELETEGROUPFROMGROUP);
+	TEST_TYPE_CODE(DPSYS_DELETEPLAYERFROMGROUP);
+	TEST_TYPE_CODE(DPSYS_DESTROYPLAYERORGROUP);
+	TEST_TYPE_CODE(DPSYS_HOST);
+	TEST_TYPE_CODE(DPSYS_SECUREMESSAGE);
+	TEST_TYPE_CODE(DPSYS_SENDCOMPLETE);
+	TEST_TYPE_CODE(DPSYS_SESSIONLOST);
+	TEST_TYPE_CODE(DPSYS_SETGROUPOWNER);
+	TEST_TYPE_CODE(DPSYS_SETPLAYERORGROUPDATA);
+	TEST_TYPE_CODE(DPSYS_SETPLAYERORGROUPNAME);
+	TEST_TYPE_CODE(DPSYS_SETSESSIONDESC);
+	TEST_TYPE_CODE(DPSYS_STARTSESSION);
 #undef TEST_ERROR_CODE
 
 	return "Unknown";
@@ -98,6 +127,21 @@ static void OnDirectPlayMessageReceived(DPID fromPlayer, DPID toPlayer, const st
 	}
 	_logFile << std::endl;
 	_logFile.flush();
+
+	if (toPlayer == DPID_SYSMSG)
+	{
+		const DPMSG_GENERIC* const sysMessage = (const DPMSG_GENERIC*)messageBuffer.data();
+		_logFile << "Sys message " << GetSysMessageString(sysMessage->dwType) << std::endl;
+		switch (sysMessage->dwType)
+		{
+		case DPSYS_SESSIONLOST:
+			_running = false;
+			break;
+		default:
+			std::cout << "Unhandled sys message " << GetSysMessageString(sysMessage->dwType) << std::endl;
+			break;
+		}
+	}
 }
 
 constexpr bool AS_SERVER = true; //fake server for tricking client
@@ -212,7 +256,7 @@ int main()
 		_logFile << "Running bot as client\n";
 	}
 
-	for (std::vector<uint8_t> messageBuffer; ; messageBuffer.clear())
+	for (std::vector<uint8_t> messageBuffer; _running; messageBuffer.clear())
 	{
 		DPID fromPlayer, toPlayer;
 		DWORD dataLength = 0;
@@ -223,10 +267,10 @@ int main()
 			std::cerr << "Failed to peek message: " << GetErrorString(peekResult);
 			return 8;
 		}
-		else if (peekResult != DPERR_NOMESSAGES && peekResult != DPERR_BUFFERTOOSMALL)
+		else if (peekResult != DPERR_NOMESSAGES)
 		{
 			messageBuffer.resize(dataLength);
-			const HRESULT receiveResult = _directPlay->Receive(&fromPlayer, &toPlayer, DPRECEIVE_PEEK, &*messageBuffer.begin(), &dataLength);
+			const HRESULT receiveResult = _directPlay->Receive(&fromPlayer, &toPlayer, DPRECEIVE_ALL, &*messageBuffer.begin(), &dataLength);
 			if (FAILED(receiveResult))
 			{
 				std::cerr << "Failed to receive message: " << GetErrorString(receiveResult);
