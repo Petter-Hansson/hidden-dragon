@@ -164,6 +164,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="src\pch.h" />
+    <ClInclude Include="src\util.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\HiddenDragon.cpp" />

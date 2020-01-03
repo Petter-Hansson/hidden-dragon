@@ -1,7 +1,11 @@
 Running bot as fake server
-Received 62 byte message from 0 to 1
-3 0 0 0 1 0 0 0 29 39 47 0 2 0 0 0 0 0 0 0 0 0 0 0 16 0 0 0 0 0 0 0 184 134 8 1 0 0 0 0 0 0 0 0 0 0 0 0 80 101 116 116 101 114 0 0 101 0 114 0 0 0 
-Received 16 byte message from 3090205 to 1
+Sys message "DPSYS_CREATEPLAYERORGROUP" to player 1
+Received 16 byte message from 101675147 to 1
 20 0 0 0 6 0 0 0 4 0 0 0 1 0 0 0 
-Received 60 byte message from 3090205 to 1
-16 0 0 0 67 79 73 51 46 54 32 50 48 49 49 48 49 50 52 48 49 0 64 0 0 0 0 0 216 17 0 0 190 0 119 136 203 15 12 0 243 223 2 0 25 240 11 0 182 168 14 0 71 199 57 0 79 170 48 0 
+________________
+Received 60 byte message from 101675147 to 1
+16 0 0 0 67 79 73 51 46 54 32 50 48 49 49 48 49 50 52 48 49 0 100 0 140 23 156 9 216 17 0 0 190 0 119 136 203 15 12 0 243 223 2 0 25 240 11 0 182 168 14 0 71 199 57 0 79 170 48 0 
+____COI3.6 2011012401_d___Ψ___Ύ_wΛ___σί___π__Ά¨__GΗ9_O0_
+Received 8 byte message from 101675147 to 1
+6 0 0 0 2 67 73 0 
+_____CI_

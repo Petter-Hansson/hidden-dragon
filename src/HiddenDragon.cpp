@@ -2,7 +2,7 @@
 //
 
 #include "pch.h"
-
+#include "util.hpp"
 
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
@@ -117,7 +117,22 @@ static void OnProgramExit()
 	CoUninitialize();
 }
 
-static void OnDirectPlayMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vector<uint8_t>& messageBuffer)
+static void HandleByteSplit(const char* fragment, size_t fragmentLength, void* context)
+{
+	std::vector<uint8_t>* fields = reinterpret_cast<std::vector<uint8_t>*>(context);
+
+	fields->push_back(atoi(fragment));
+}
+
+static void SendDirectPlayMessage(DPID toPlayer, const char* byteStream)
+{
+	std::vector<uint8_t> fields;
+	split(byteStream, ' ', HandleByteSplit, &fields);
+
+	_directPlay->Send(_localPlayer, toPlayer, DPSEND_GUARANTEED, fields.data(), fields.size());
+}
+
+static void PrintDirectPlayMessage(DPID fromPlayer, DPID toPlayer, const std::vector<uint8_t>& messageBuffer)
 {
 	std::cout << "Received " << messageBuffer.size() << " byte message from " << fromPlayer << " to " << toPlayer << std::endl;
 	_logFile << "Received " << messageBuffer.size() << " byte message from " << fromPlayer << " to " << toPlayer << std::endl;
@@ -126,22 +141,54 @@ static void OnDirectPlayMessageReceived(DPID fromPlayer, DPID toPlayer, const st
 		_logFile << (int)value << ' ';
 	}
 	_logFile << std::endl;
-	_logFile.flush();
+	for (uint8_t value : messageBuffer)
+	{
+		if (value < 32)
+			value = '_';
+		_logFile << (char)value;
+	}
+	_logFile << std::endl;
+}
 
-	if (toPlayer == DPID_SYSMSG)
+static void OnDirectPlayMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vector<uint8_t>& messageBuffer)
+{
+	if (fromPlayer == DPID_SYSMSG)
 	{
 		const DPMSG_GENERIC* const sysMessage = (const DPMSG_GENERIC*)messageBuffer.data();
-		_logFile << "Sys message " << GetSysMessageString(sysMessage->dwType) << std::endl;
+		_logFile << "Sys message " << GetSysMessageString(sysMessage->dwType) << " to player " << toPlayer << std::endl;
 		switch (sysMessage->dwType)
 		{
 		case DPSYS_SESSIONLOST:
+		{
 			_running = false;
 			break;
+		}
+		case DPSYS_CREATEPLAYERORGROUP:
+		{
+			const DPMSG_CREATEPLAYERORGROUP* const createPlayerOrGroup = (const DPMSG_CREATEPLAYERORGROUP*)sysMessage;
+
+			assert(createPlayerOrGroup->dwPlayerType == DPPLAYERTYPE_PLAYER); //don't think CC3 uses groups
+			assert(createPlayerOrGroup->dwCurrentPlayers == 2); //think this only happens when remote player is created
+
+			if (_localPlayer == DPID_SERVERPLAYER)
+			{
+				SendDirectPlayMessage(DPID_ALLPLAYERS, "48 0 0 0 67 79 73 51 46 54 32 50 48 49 49 48 49 50 52 48 49 0 0 0 0 0 0 0 0 0 0 0 32 0 204 0 203 15 12 0 243 223 2 0 25 240 11 0 182 168 14 0 71 199 57 0 79 170 48 0 ");
+			}
+			break;
+		}
 		default:
+		{
 			std::cout << "Unhandled sys message " << GetSysMessageString(sysMessage->dwType) << std::endl;
 			break;
 		}
+		}
 	}
+	else
+	{
+		PrintDirectPlayMessage(fromPlayer, toPlayer, messageBuffer);
+	}
+
+	_logFile.flush();
 }
 
 constexpr bool AS_SERVER = true; //fake server for tricking client
@@ -203,7 +250,7 @@ int main()
 			return 7;
 		}
 
-		std::cout << "Created server player\n";
+		std::cout << "Created server player " << _localPlayer << std::endl;
 
 		std::cout << "Running bot as fake server\n";
 		_logFile << "Running bot as fake server\n";
@@ -250,10 +297,13 @@ int main()
 			return 7;
 		}
 
-		std::cout << "Created local player\n";
+		std::cout << "Created local player " << _localPlayer << std::endl;
 
 		std::cout << "Running bot as client\n";
 		_logFile << "Running bot as client\n";
+
+		SendDirectPlayMessage(DPID_SERVERPLAYER, "20 0 0 0 6 0 0 0 4 0 0 0 1 0 0 0 ");
+		SendDirectPlayMessage(DPID_SERVERPLAYER, "16 0 0 0 67 79 73 51 46 54 32 50 48 49 49 48 49 50 52 48 49 0 64 0 0 0 0 0 216 17 0 0 190 0 119 136 203 15 12 0 243 223 2 0 25 240 11 0 182 168 14 0 71 199 57 0 79 170 48 0 ");
 	}
 
 	for (std::vector<uint8_t> messageBuffer; _running; messageBuffer.clear())
