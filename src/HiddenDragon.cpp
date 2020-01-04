@@ -317,9 +317,6 @@ static void SendClientUnitData()
 	SendDirectPlayMessage("21 0 0 0 ");
 	SendDirectPlayMessage("17 0 0 0 10 0 73 0 ");
 	SendDirectPlayMessage("6 0 0 0 254 67 73 0 ");
-	SendDirectPlayMessage("3 0 0 0 0 2 73 0 "); //start battle, testing
-	SendDirectPlayMessage("6 0 0 0 0 67 73 0 ");
-	SendDirectPlayMessage("6 0 0 0 2 67 73 0 ");
 }
 
 static void SendServerUnitData()
@@ -786,12 +783,6 @@ static void SendServerUnitData()
 	SendDirectPlayMessage("49 0 0 0 10 0 25 0 ");
 }
 
-static void SendClientMaybeDeploymentData()
-{
-	//SendDirectPlayMessage("14 0 0 0 0 215 2 0 ");
-	//SendDirectPlayMessage("6 0 0 0 2 67 73 0 ");
-}
-
 static void SendTickMessage(DWORD header, DWORD counter)
 {
 	uint8_t buffer[8];
@@ -807,8 +798,6 @@ static void SendServerTick()
 	SendTickMessage(5, counter);
 
 	counter += 1;
-	if (counter > 255)
-		counter = 1;
 }
 
 static void SendClientTick()
@@ -817,8 +806,6 @@ static void SendClientTick()
 	SendTickMessage(8, counter);
 
 	counter += 1;
-	if (counter > 255)
-		counter = 1;
 }
 
 static void SendServerDeploymentData()
@@ -827,37 +814,6 @@ static void SendServerDeploymentData()
 	SendDirectPlayMessage("37 0 0 0 ");
 	SendDirectPlayMessage("24 0 0 0 0 205 96 2 ");
 	SendServerTick();
-	//SendDirectPlayMessage("60 0 0 0 58 2 0 0 16 0 0 0 1 206 146 0 0 0 1 5 0 0 1 24 58 0 0 0 53 0 0 0 0 0 0 197 140 1 0 0 19 0 0 0 1 70 0 0 0 8 0 0 0 73 0 0 0 1 0 255 47 2 0 0 0 0 0 58 0 0 0 56 0 0 0 0 0 0 193 140 1 0 0 15 0 0 0 1 8 0 0 0 62 0 0 0 1 0 255 47 2 0 0 0 0 0 58 0 0 0 56 0 0 0 0 0 0 23 128 0 0 0 11 0 0 0 0 20 0 0 0 61 0 0 0 10 22 2 0 0 0 58 0 0 0 57 0 0 0 0 0 0 215 134 0 0 0 22 0 0 0 0 20 0 0 0 61 0 0 0 14 17 0 0 0 61 0 0 0 9 1 0 22 2 0 0 0 58 0 0 0 59 0 0 0 0 0 0 23 128 0 0 0 11 0 0 0 0 20 0 0 0 61 0 0 0 6 22 2 0 0 0 58 0 0 0 58 0 0 0 0 0 0 23 128 0 0 0 11 0 0 0 0 20 0 0 0 61 0 0 0 13 22 2 0 0 0 54 0 0 0 9 0 7 0 0 0 68 0 96 0 96 0 96 0 96 0 0 0 0 0 1 0 0 0 8 21 118 3 118 3 25 0 0 0 0 0 5 5 5 5 0 0 0 0 0 0 0 0 0 253 25 0 58 0 0 0 57 0 0 0 0 0 0 65 0 0 0 0 4 0 0 0 1 17 0 0 0 0 0 0 58 0 0 0 63 0 0 0 0 0 0 39 128 0 0 0 12 0 0 0 0 3 0 0 0 5 0 0 0 1 0 22 2 0 0 0 58 0 0 0 6 0 1 0 0 0 0 197 140 1 0 0 19 0 0 0 1 67 0 0 0 8 0 0 0 67 0 0 0 1 0 255 47 2 0 0 0 0 0 58 0 0 0 7 0 1 0 0 0 0 197 140 1 0 0 19 0 0 0 1 51 0 0 0 8 0 0 0 64 0 0 0 1 0 255 47 2 0 0 0 0 0 58 0 0 0 10 0 1 0 0 0 0 197 140 1 0 0 19 0 0 0 1 62 0 0 0 8 0 0 0 62 0 0 0 1 0 255 47 2 0 0 0 0 0 58 0 0 0 39 0 1 0 0 0 0 39 128 0 0 0 12 0 0 0 0 3 0 0 0 5 0 0 0 1 0 22 2 0 0 0 58 0 0 0 41 0 1 0 0 0 0 39 128 0 0 0 12 0 0 0 0 3 0 0 0 5 0 0 0 1 0 22 2 0 0 0 0 0 0 0 ");
-	
-	//next is server tick
-	/*SendDirectPlayMessage("5 0 0 0 2 0 0 0 ");
-	SendDirectPlayMessage("60 0 0 0 42 0 0 0 59 0 0 0 8 0 0 0 0 0 0 0 0 0 0 60 0 0 0 128 14 0 0 0 11 0 0 0 1 0 0 0 3 0 0 0 32 2 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("5 0 0 0 3 0 0 0 ");
-	SendDirectPlayMessage("60 0 0 0 42 0 0 0 59 0 0 0 8 0 1 0 0 0 0 0 0 0 0 60 0 0 0 128 14 0 0 0 11 0 0 0 1 0 0 0 3 0 0 0 32 2 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("5 0 0 0 4 0 0 0 ");
-	SendDirectPlayMessage("60 0 0 0 42 0 0 0 59 0 0 0 7 0 0 0 0 0 0 0 0 0 0 60 0 0 0 128 14 0 0 0 11 0 0 0 1 0 0 0 3 0 0 0 32 2 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("5 0 0 0 5 0 0 0 ");
-	SendDirectPlayMessage("60 0 0 0 42 0 0 0 59 0 0 0 7 0 1 0 0 0 0 0 0 0 0 60 0 0 0 128 14 0 0 0 13 0 0 0 1 0 0 0 3 0 0 0 32 2 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("5 0 0 0 6 0 0 0 ");
-	SendDirectPlayMessage("60 0 0 0 42 0 0 0 59 0 0 0 6 0 0 0 0 0 0 0 0 0 0 60 0 0 0 128 14 0 0 0 11 0 0 0 1 0 0 0 3 0 0 0 32 2 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("5 0 0 0 7 0 0 0 ");
-	SendDirectPlayMessage("60 0 0 0 135 0 0 0 59 0 0 0 6 0 1 0 0 0 0 0 0 0 0 60 0 0 0 128 14 0 0 0 11 0 0 0 1 0 0 0 3 0 0 0 32 2 0 0 0 0 58 0 0 0 63 0 0 0 0 0 64 161 0 0 0 0 7 0 0 0 5 0 2 0 55 0 0 0 0 0 0 58 0 0 0 39 0 1 0 0 0 64 161 0 0 0 0 7 0 0 0 3 0 2 0 70 0 0 0 0 0 0 58 0 0 0 41 0 1 0 0 0 64 161 0 0 0 0 7 0 0 0 3 0 2 0 48 0 0 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("5 0 0 0 8 0 0 0 ");
-	SendDirectPlayMessage("60 0 0 0 42 0 0 0 59 0 0 0 5 0 0 0 0 0 0 0 0 0 0 60 0 0 0 128 14 0 0 0 11 0 0 0 1 0 0 0 3 0 0 0 32 2 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("5 0 0 0 9 0 0 0 ");
-	SendDirectPlayMessage("60 0 0 0 42 0 0 0 59 0 0 0 5 0 1 0 0 0 0 0 0 0 0 60 0 0 0 128 14 0 0 0 11 0 0 0 1 0 0 0 3 0 0 0 32 2 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("5 0 0 0 10 0 0 0 ");
-	SendDirectPlayMessage("60 0 0 0 218 0 0 0 59 0 0 0 0 0 0 0 0 0 0 0 0 0 0 60 0 232 122 9 14 0 0 0 255 255 255 255 1 0 0 0 3 0 0 0 32 2 0 0 0 0 59 0 0 0 1 0 0 0 0 0 0 0 2 0 0 60 0 0 0 0 18 0 0 0 104 1 0 0 255 255 255 255 1 0 0 0 3 0 0 0 32 2 0 0 0 0 59 0 0 0 0 0 1 0 0 0 0 0 0 0 0 60 0 254 25 0 14 0 0 0 255 255 255 255 1 0 0 0 3 0 0 0 32 2 0 0 0 0 59 0 0 0 1 0 1 0 0 0 0 0 2 0 0 60 0 0 0 0 18 0 0 0 154 1 0 0 255 255 255 255 1 0 0 0 3 0 0 0 32 2 0 0 0 0 59 0 0 0 4 0 0 0 0 0 0 0 0 0 0 60 0 0 0 0 14 0 0 0 11 0 0 0 1 0 0 0 3 0 0 0 32 2 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("5 0 0 0 11 0 0 0 ");
-	SendDirectPlayMessage("60 0 0 0 58 0 0 0 16 0 0 0 1 0 0 0 0 0 1 83 0 0 1 123 59 0 0 0 4 0 1 0 0 0 0 0 0 0 0 60 0 0 0 128 14 0 0 0 11 0 0 0 1 0 0 0 3 0 0 0 32 2 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("14 0 0 0 0 0 0 0 12 0 0 0 0 0 0 0 0 0 255 255 0 0 0 0 108 5 0 0 27 2 0 0 53 0 0 0 8 0 1 0 255 255 255 0 0 0 0 6 0 0 0 0 2 0 0 0 11 0 0 0 4 0 0 0 255 0 0 0 0 0 2 0 3 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("14 0 0 0 0 0 0 0 11 0 0 0 0 0 0 0 0 0 255 255 0 0 0 0 225 3 0 0 234 3 0 0 53 0 0 0 2 0 1 0 255 255 255 0 0 0 0 3 0 0 0 0 2 0 0 0 8 0 0 0 8 0 0 0 6 0 0 0 0 0 2 0 3 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("14 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 0 0 0 0 197 3 0 0 40 4 0 0 53 0 0 0 0 0 1 0 255 255 255 0 0 0 0 8 0 0 0 0 2 0 0 0 8 0 0 0 8 0 0 0 5 0 0 0 0 0 2 0 3 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("14 0 0 0 0 0 0 0 7 0 0 0 0 0 0 0 0 0 255 255 0 0 0 0 181 3 0 0 126 4 0 0 53 0 0 0 4 0 1 0 255 255 255 0 0 0 0 14 0 0 0 0 2 0 0 0 7 0 0 0 9 0 0 0 2 0 0 0 0 0 2 0 3 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("14 0 0 0 0 0 0 0 11 0 0 0 0 0 0 0 0 0 255 255 0 0 0 0 180 3 0 0 90 6 0 0 53 0 0 0 3 0 1 0 255 255 255 0 0 0 0 10 0 0 0 0 2 0 0 0 7 0 0 0 13 0 0 0 2 0 0 0 0 0 2 0 3 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("14 0 0 0 0 0 0 0 11 0 0 0 0 0 0 0 0 0 255 255 0 0 0 0 132 3 0 0 189 6 0 0 53 0 0 0 1 0 1 0 255 255 255 0 0 0 0 2 0 0 0 0 2 0 0 0 7 0 0 0 14 0 0 0 255 0 0 0 0 0 2 0 3 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");*/
-	
-	//SendDirectPlayMessage("24 0 0 0 2 205 96 2 "); //maybe 96 (second last field) is number of client messages received at server
 }
 
 static void OnSystemMessageReceived(DPID toPlayer, const DPMSG_GENERIC* sysMessage)
@@ -982,23 +938,24 @@ static void OnGameMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vec
 		}
 		break;
 	}
-	case 37:
-	{
-		if (IsClient() && _gameState == GameState::Deployment)
-		{
-			SendClientMaybeDeploymentData();
-
-			_gameState = GameState::Battle;
-		}
-
-		break;
-	}
 	case 5:
 	{
 		if (IsClient() && _gameState == GameState::Battle)
 		{
 			//server tick
 			SendClientTick();
+		}
+		break;
+	}
+	case 61:
+	{
+		if (IsClient() && _gameState == GameState::Deployment)
+		{
+			SendDirectPlayMessage("3 0 0 0 0 2 73 0 ");
+			SendDirectPlayMessage("6 0 0 0 0 67 73 0 ");
+			SendDirectPlayMessage("6 0 0 0 2 67 73 0 ");
+
+			_gameState = GameState::Battle;
 		}
 		break;
 	}
