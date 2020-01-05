@@ -350,6 +350,6 @@ MigrationBackup/
 .ionide/
 /HiddenDragonLog.txt
 /HiddenDragonMessages.txt
-/diffA_client_unit_data.txt
-/diffB_server_unit_data.txt
+/diff*.txt
+/diff*.txt
 /HiddenDragonSent.txt

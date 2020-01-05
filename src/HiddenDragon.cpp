@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "util.hpp"
 
-constexpr bool AS_SERVER = false; //fake server for tricking client
+constexpr bool AS_SERVER = true; //fake server for tricking client
 
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
@@ -237,8 +237,22 @@ static void SetGameState(GameState newState)
 //unfortunately a lot of data we must figure out and send
 static void SendClientUnitData()
 {
+	//last fields of message 18 here are "10 0 64 0 1 231 9 0"
+	//where 10 = requisition points remaining
+	//64 added by 1 if adding sniper
+	//9 added by 1 if adding sniper
 	SendDirectPlayMessage("18 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 10 0 64 0 1 231 9 0 ");
-	SendDirectPlayMessage("22 0 0 0 0 0 0 0 0 0 0 80 101 116 116 101 114 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 4 96 1 0 0 61 1 0 0 51 1 0 0 36 1 0 0 87 1 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 0 ");
+	
+	//message 22 specifies a soldier
+	//first soldier is the commander (helps debugging since name is always the same)
+	//potentially random fields are 75 to 91 ("75 1 0 0 94 1 0 0 41 1 0 0 91" below)
+	SendDirectPlayMessage("22 0 0 0 0 0 0 0 0 0 0 80 101 116 116 101 114 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 4 97 1 0 0 75 1 0 0 94 1 0 0 41 1 0 0 91 1 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 0 ");
+	
+	//other soldiers, additional random field is the name field which is necessarily fixed size 
+	//TODO: find out what is morale, experience, fatigue, strength, leadership ability, etc.
+	//also we have kills and medals here probably which are necessarily zero for a new battle/campaign
+	//there are (for this data) 105 rows in Solidiers.txt and I at least expect to find an index row for that
+	//potentially first big endian DWORD is a general index into soldier arra, and it may be duplicated a second time...
 	SendDirectPlayMessage("22 0 0 0 1 0 0 0 1 0 0 83 111 108 111 109 105 110 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 1 2 236 0 0 0 23 1 0 0 26 1 0 0 0 1 0 0 22 1 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 ");
 	SendDirectPlayMessage("22 0 0 0 2 0 0 0 2 0 0 80 108 97 115 116 111 107 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 2 0 152 0 0 0 64 1 0 0 2 1 0 0 229 0 0 0 229 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
 	SendDirectPlayMessage("22 0 0 0 3 0 0 0 3 0 0 83 104 101 114 115 116 105 117 107 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 3 31 1 0 0 227 0 0 0 238 0 0 0 2 1 0 0 41 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 ");
@@ -302,7 +316,16 @@ static void SendClientUnitData()
 	SendDirectPlayMessage("22 0 0 0 61 0 0 0 61 0 0 71 111 109 111 118 0 107 105 107 104 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 1 0 143 0 0 0 250 0 0 0 24 1 0 0 215 0 0 0 215 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6 0 0 0 ");
 	SendDirectPlayMessage("22 0 0 0 62 0 0 0 62 0 0 76 105 115 99 104 101 110 107 111 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 2 0 146 0 0 0 62 1 0 0 219 0 0 0 220 0 0 0 220 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 8 0 0 0 ");
 	SendDirectPlayMessage("22 0 0 0 63 0 0 0 63 0 0 65 104 109 97 100 111 118 0 111 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 70 3 0 142 0 0 0 62 1 0 0 231 0 0 0 213 0 0 0 213 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 9 0 0 0 ");
+	
+	//message 23 might be vehicle list, unfortunately a bit hard to confirm on default scenario
+	//second last field of message 23 is 9, which is added to by 1 when sniper is added
 	SendDirectPlayMessage("23 0 0 0 0 0 0 0 0 0 52 53 109 109 32 80 114 111 116 105 118 46 32 79 114 117 100 105 101 32 111 98 114 46 51 50 47 51 56 0 68 0 0 0 0 0 0 0 0 231 9 0 ");
+	
+	//messages 24 specifies a team
+	//first two big endian DWORDS seem to be duplicated team indices like for soldiers
+	//teams seem to be inserted into the order they are displayed in the game
+	//most diffs (not spelling them out here) seem to be soldier indices
+	//expecting there to be a row index into RUTeams.txt, but a bit unsure if GETeams.txt and RUTeams.txt are somehow appended into one
 	SendDirectPlayMessage("24 0 0 0 0 0 0 0 0 0 0 71 114 111 117 112 32 76 101 97 100 101 114 0 255 255 255 255 0 0 0 0 157 14 73 0 79 0 0 0 1 0 2 0 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 105 27 1 0 0 3 1 0 0 8 0 111 98 27 1 0 0 0 51 0 0 0 0 0 0 ");
 	SendDirectPlayMessage("24 0 0 0 1 0 0 0 1 0 0 76 77 71 32 73 110 102 97 110 116 114 121 0 255 255 255 255 0 0 0 0 157 14 73 0 22 0 3 0 4 0 5 0 9 0 10 0 11 0 6 0 7 0 8 0 12 0 255 105 221 0 0 0 213 0 0 0 11 0 111 98 221 0 0 0 0 51 0 0 0 0 0 0 ");
 	SendDirectPlayMessage("24 0 0 0 2 0 0 0 2 0 0 76 77 71 32 73 110 102 97 110 116 114 121 0 255 255 255 255 0 0 0 0 157 14 73 0 22 0 13 0 14 0 16 0 17 0 18 0 19 0 22 0 20 0 21 0 15 0 255 105 225 0 0 0 216 0 0 0 11 0 111 98 225 0 0 0 0 51 0 0 0 0 0 0 ");
@@ -313,6 +336,7 @@ static void SendClientUnitData()
 	SendDirectPlayMessage("24 0 0 0 7 0 0 0 7 0 0 52 53 109 109 32 65 84 32 71 117 110 0 114 121 0 255 255 0 0 0 0 157 14 73 0 33 0 56 0 57 0 59 0 58 0 255 255 255 255 255 255 255 255 255 255 255 255 0 105 243 0 0 0 235 0 0 0 17 0 111 98 243 0 0 0 0 51 0 0 0 0 0 0 ");
 	SendDirectPlayMessage("24 0 0 0 8 0 0 0 8 0 0 56 50 109 109 32 77 111 114 116 97 114 0 114 121 0 255 255 0 0 0 0 157 14 73 0 6 0 60 0 61 0 62 0 63 0 255 255 255 255 255 255 255 255 255 255 255 255 255 105 231 0 0 0 226 0 0 0 10 0 111 98 231 0 0 0 0 51 0 0 0 0 0 0 ");
 
+	//these messages don't appear to change on adding a team
 	SendDirectPlayMessage("17 0 0 0 12 0 73 0 ");
 	SendDirectPlayMessage("21 0 0 0 ");
 	SendDirectPlayMessage("17 0 0 0 10 0 73 0 ");
