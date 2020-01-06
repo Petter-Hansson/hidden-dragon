@@ -2,4 +2,4 @@
 
 bool AttachToCloseCombat();
 void DetachFromCloseCombat();
-void DumpMemory(const std::string& name);
+void DumpMemory(std::ostream& binaryStream);

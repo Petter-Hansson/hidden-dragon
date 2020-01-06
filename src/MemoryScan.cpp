@@ -1290,6 +1290,9 @@ bool AttachToCloseCombat()
 	{
 		_instance.id = 0;
 		std::cerr << "Failed to open CC3.exe process: " << os_last_error() << std::endl;
+
+		//TODO: call DetachFromCloseCombat here for cleanup when I can verify it works without crashing
+		//low prio since we exit app anyway if this happens
 	}
 	else
 	{
@@ -1322,6 +1325,22 @@ void DetachFromCloseCombat()
 	os_thread_join(&_instance.thread);
 }
 
-void DumpMemory(const std::string& name)
+void DumpMemory(std::ostream& binaryStream)
 {
+	region_iterator it[1];
+	region_iterator_init(it, _instance.target);
+
+	for (; !region_iterator_done(it); region_iterator_next(it))
+	{
+		const char *buf = (const char*)region_iterator_memory(it);
+		if (buf)
+		{
+			binaryStream.write(buf, it->size);
+		}
+		else
+		{
+			std::cerr << "CC3.exe memory read failed: " << os_last_error() << std::endl;
+		}
+	}
+	region_iterator_destroy(it);
 }

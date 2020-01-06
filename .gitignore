@@ -353,3 +353,4 @@ MigrationBackup/
 /diff*.txt
 /diff*.txt
 /HiddenDragonSent.txt
+/*.bin
