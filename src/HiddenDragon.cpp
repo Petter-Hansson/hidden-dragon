@@ -1,7 +1,10 @@
 #include "pch.h"
-#include "util.hpp"
 
-constexpr bool AS_SERVER = true; //fake server for tricking client
+#include "MemoryScan.hpp"
+#include "Util.hpp"
+
+
+constexpr bool AS_SERVER = false; //fake server for tricking client
 
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
@@ -145,15 +148,6 @@ static BOOL FAR PASCAL DirectPlayEnumHandler(LPCDPSESSIONDESC2 lpThisSD,
 	}
 	
 	return true;
-}
-
-static void OnProgramExit()
-{
-	if (_directPlay)
-		_directPlay->Release();
-	if (_baseDirectPlay)
-		_baseDirectPlay->Release();
-	CoUninitialize();
 }
 
 static void HandleByteSplit(const char* fragment, size_t fragmentLength, void* context)
@@ -1001,15 +995,31 @@ static void OnDirectPlayMessageReceived(DPID fromPlayer, DPID toPlayer, const st
 	_logFile.flush();
 }
 
-int main()
+#ifndef NDEBUG //to avoid needlessly scaring AV software
+//need to get keyboard presses when CC3 is open since we can't tab out of game during debug
+//TODO: the following didn't appear to work, might need different method
+//could be DirectInput exclusive access being a bastard
+static HHOOK _keyboardHook;
+static LRESULT CALLBACK OnGlobalKeyboardEvent(int code, WPARAM wParam, LPARAM lParam)
 {
-	atexit(OnProgramExit);
-	CoInitializeEx(NULL, COINIT_MULTITHREADED);
+	if (code >= 0 && wParam == WM_KEYDOWN)
+	{
+		const PKBDLLHOOKSTRUCT p = (PKBDLLHOOKSTRUCT)lParam;
+		const int vkCode = p->vkCode;
+		std::cout << "Pressed key " << vkCode << std::endl;
+	}
 
-	_logFile.rdbuf()->pubsetbuf(0, 0);
+	return CallNextHookEx(_keyboardHook, code, wParam, lParam);
+}
 
-	std::cout << "Welcome to Hidden Dragon, a bot for Close Combat 3: Cross of Iron\n";
+static void HookKeyboard()
+{
+	//_keyboardHook = SetWindowsHookExA(WH_KEYBOARD_LL, OnGlobalKeyboardEvent, nullptr, 0);
+}
+#endif
 
+static int SetupDirectPlay()
+{
 	GUID appGuid;
 	const HRESULT guidResult = CLSIDFromString(L"{1872D778-E476-41CB-8C06-7DCE98BD2CB7}", (LPCLSID)&appGuid);
 	if (guidResult != S_OK)
@@ -1117,11 +1127,23 @@ int main()
 		SendDirectPlayMessage("16 0 0 0 67 79 73 51 46 54 32 50 48 49 49 48 49 50 52 48 49 0 64 0 0 0 0 0 216 17 0 0 190 0 119 136 203 15 12 0 243 223 2 0 25 240 11 0 182 168 14 0 71 199 57 0 79 170 48 0 ");
 	}
 
+	return 0;
+}
+
+static int RunMainLoop()
+{
 	for (std::vector<uint8_t> messageBuffer; _running; messageBuffer.clear())
 	{
+		/*MSG msg;
+		while (GetMessageA(&msg, nullptr, 0, 0))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}*/
+
 		DPID fromPlayer, toPlayer;
 		DWORD dataLength = 0;
-		const HRESULT peekResult =_directPlay->Receive(&fromPlayer, &toPlayer, DPRECEIVE_PEEK, nullptr, &dataLength);
+		const HRESULT peekResult = _directPlay->Receive(&fromPlayer, &toPlayer, DPRECEIVE_PEEK, nullptr, &dataLength);
 		if (peekResult != DPERR_NOMESSAGES && peekResult != DPERR_BUFFERTOOSMALL
 			&& FAILED(peekResult))
 		{
@@ -1143,4 +1165,49 @@ int main()
 
 		Sleep(1);
 	}
+
+	return 0;
+}
+
+static void OnProgramExit()
+{
+	DetachFromCloseCombat();
+
+	if (_directPlay)
+		_directPlay->Release();
+	if (_baseDirectPlay)
+		_baseDirectPlay->Release();
+#ifndef NDEBUG
+	if (_keyboardHook)
+		UnhookWindowsHookEx(_keyboardHook);
+#endif
+	CoUninitialize();
+}
+
+int main()
+{
+	atexit(OnProgramExit);
+	CoInitializeEx(NULL, COINIT_MULTITHREADED);
+
+	_logFile.rdbuf()->pubsetbuf(0, 0);
+
+#ifndef NDEBUG
+	HookKeyboard();
+#endif
+
+	std::cout << "Welcome to Hidden Dragon, a bot for Close Combat 3: Cross of Iron\n";
+
+	const int result = SetupDirectPlay();
+	if (result != 0)
+	{
+		return result;
+	}
+
+	if (!AttachToCloseCombat())
+	{
+		std::cerr << "This is a critical error, bot won't be able to function without reading CC3.exe process memory.\n";
+		return 12;
+	}
+
+	return RunMainLoop();
 }
