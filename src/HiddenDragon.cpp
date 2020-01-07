@@ -150,13 +150,6 @@ static BOOL FAR PASCAL DirectPlayEnumHandler(LPCDPSESSIONDESC2 lpThisSD,
 	return true;
 }
 
-static void HandleByteSplit(const char* fragment, size_t fragmentLength, void* context)
-{
-	std::vector<uint8_t>* fields = reinterpret_cast<std::vector<uint8_t>*>(context);
-
-	fields->push_back(atoi(fragment));
-}
-
 static void SendDirectPlayMessage(const uint8_t* data, std::size_t len)
 {
 	DPID toPlayer = DPID_SERVERPLAYER;
@@ -173,7 +166,10 @@ static void SendDirectPlayMessage(const uint8_t* data, std::size_t len)
 static void SendDirectPlayMessage(const char* byteStream)
 {
 	std::vector<uint8_t> fields;
-	split(byteStream, ' ', HandleByteSplit, &fields);
+	split(byteStream, ' ', [ & ](const char* data, std::size_t len)
+	{
+		fields.push_back(atoi(data));
+	});
 
 	SendDirectPlayMessage(fields.data(), fields.size());
 
