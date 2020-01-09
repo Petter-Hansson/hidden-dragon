@@ -2,4 +2,4 @@
 
 bool AttachToCloseCombat();
 void DetachFromCloseCombat();
-void DumpMemory(std::ostream& binaryStream);
+void DumpMemory(std::ostream& binaryStream, bool segmented);

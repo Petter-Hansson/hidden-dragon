@@ -1325,16 +1325,29 @@ void DetachFromCloseCombat()
 	os_thread_join(&_instance.thread);
 }
 
-void DumpMemory(std::ostream& binaryStream)
+void DumpMemory(std::ostream& binaryStream, bool segmented)
 {
 	region_iterator it[1];
 	region_iterator_init(it, _instance.target);
 
 	for (; !region_iterator_done(it); region_iterator_next(it))
 	{
+		if (it->flags != (REGION_ITERATOR_READ | REGION_ITERATOR_WRITE))
+		{
+			continue; //only interested in data memory
+		}
+
 		const char *buf = (const char*)region_iterator_memory(it);
 		if (buf)
 		{
+			if (segmented)
+			{
+				const uint32_t base = it->base;
+				const uint32_t size = it->size;
+				binaryStream.write(reinterpret_cast<const char*>(&base), 4);
+				binaryStream.write(reinterpret_cast<const char*>(&size), 4);
+			}
+			
 			binaryStream.write(buf, it->size);
 		}
 		else

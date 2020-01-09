@@ -924,8 +924,8 @@ static void OnGameMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vec
 			//TODO: this was "extra" and was outright hanging host. something else is evidently "done with req"
 			//SendDirectPlayMessage("9 0 0 0"); //done with requisition
 
-			std::ofstream dumpFile("requisition.bin", std::ios::binary);
-			DumpMemory(dumpFile);
+			std::ofstream dumpFile("req.bin", std::ios::binary);
+			DumpMemory(dumpFile, true);
 			dumpFile.close();
 		}
 		break;
