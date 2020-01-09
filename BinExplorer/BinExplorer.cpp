@@ -123,7 +123,7 @@ static std::vector<uint8_t> GetByteSequenceFromDescription(const std::string& de
 {
 	std::vector<uint8_t> sequence;
 	constexpr char separator = ' ';
-	split(description.c_str(), separator, [&](const char* data, std::size_t len)
+	Split(description.c_str(), separator, [&](const char* data, std::size_t len)
 	{
 		uint8_t nextValue = 0;
 

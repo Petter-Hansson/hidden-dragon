@@ -27,6 +27,8 @@ static GameState _gameState;
 static std::ofstream _logFile("HiddenDragonLog.txt");
 static std::ofstream _messageFile("HiddenDragonMessages.txt");
 static std::ofstream _sendFile("HiddenDragonSent.txt");
+static Timer _requisitionDumpTimer;
+static int _requisitionDumpCounter;
 
 #define LOG(x) std::cout << x; _logFile << x
 
@@ -166,7 +168,7 @@ static void SendDirectPlayMessage(const uint8_t* data, std::size_t len)
 static void SendDirectPlayMessage(const char* byteStream)
 {
 	std::vector<uint8_t> fields;
-	split(byteStream, ' ', [ & ](const char* data, std::size_t len)
+	Split(byteStream, ' ', [ & ](const char* data, std::size_t len)
 	{
 		fields.push_back(atoi(data));
 	});
@@ -869,6 +871,15 @@ static void OnSystemMessageReceived(DPID toPlayer, const DPMSG_GENERIC* sysMessa
 	}
 }
 
+static void TimedDump(const std::string& prefix, int& counter, Timer& timer)
+{
+	std::ofstream dumpFile(prefix + std::to_string(counter) + ".bin", std::ios::binary);
+	DumpMemory(dumpFile, true);
+	dumpFile.close();
+	timer.Restart();
+	counter += 1;
+}
+
 static void OnGameMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vector<uint8_t>& messageBuffer)
 {
 	if (messageBuffer.size() < 4)
@@ -924,9 +935,7 @@ static void OnGameMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vec
 			//TODO: this was "extra" and was outright hanging host. something else is evidently "done with req"
 			//SendDirectPlayMessage("9 0 0 0"); //done with requisition
 
-			std::ofstream dumpFile("req.bin", std::ios::binary);
-			DumpMemory(dumpFile, true);
-			dumpFile.close();
+			TimedDump("req", _requisitionDumpCounter, _requisitionDumpTimer);
 		}
 		break;
 	}
@@ -1130,6 +1139,17 @@ static int SetupDirectPlay()
 	return 0;
 }
 
+static void OnMainLoop()
+{
+	if (IsClient() && _gameState == GameState::Requisition)
+	{
+		if (_requisitionDumpTimer.GetElapsed() > 15)
+		{
+			TimedDump("req", _requisitionDumpCounter, _requisitionDumpTimer);
+		}
+	}
+}
+
 static int RunMainLoop()
 {
 	for (std::vector<uint8_t> messageBuffer; _running; messageBuffer.clear())
@@ -1162,6 +1182,8 @@ static int RunMainLoop()
 
 			OnDirectPlayMessageReceived(fromPlayer, toPlayer, messageBuffer);
 		}
+
+		OnMainLoop();
 
 		Sleep(1);
 	}
