@@ -19,7 +19,10 @@ struct Image
 	}
 };
 
+constexpr uint32_t NoRegionSelected = std::numeric_limits<uint32_t>::max();
+
 static std::vector<Image> _imageStack;
+static uint32_t _selectedRegionBase = NoRegionSelected;
 
 static void PushNewImage()
 {
@@ -28,7 +31,7 @@ static void PushNewImage()
 
 static void PushImageIfNeeded()
 {
-	if (_imageStack.empty() || _imageStack.back().IsEmpty())
+	if (_imageStack.empty() || !_imageStack.back().IsEmpty())
 		PushNewImage();
 }
 
@@ -206,6 +209,40 @@ static void EmitMatchSequence(const std::vector<uint8_t>& sequence, const Match&
 	std::cout << std::endl;
 }
 
+static void SelectRegion(const std::string& description)
+{
+	if (description == "")
+	{
+		_selectedRegionBase = NoRegionSelected;
+		std::cout << "Deselected region\n";
+	}
+
+	if (std::all_of(description.cbegin(), description.cend(), [](char c)
+	{
+		return std::isdigit(c);
+	}))
+	{
+		const uint32_t addr = static_cast<uint32_t>(std::atoll(description.c_str()));
+
+		if (ContainsIf(_imageStack.back().Regions, [&](const Region& region)
+		{
+			return region.Base == addr;
+		}))
+		{
+			_selectedRegionBase = addr;
+			std::cout << "Selected region\n";
+		}
+		else
+		{
+			std::cout << "No region with such a base address\n";
+		}
+	}
+	else
+	{
+		std::cout << "Must currently enter region base manually; TODO: select from list and/or select minimum edit distance\n";
+	}
+}
+
 static void FindSequence(const std::string& description)
 {
 	if (_imageStack.empty())
@@ -222,6 +259,11 @@ static void FindSequence(const std::string& description)
 	for (const Region& region : _imageStack.back().Regions)
 	{
 		const std::vector<uint8_t>& workBuffer = region.Data;
+
+		if (_selectedRegionBase != NoRegionSelected && _selectedRegionBase != region.Base)
+		{
+			continue;
+		}
 
 		if (sequence.size() > workBuffer.size())
 		{
@@ -307,12 +349,91 @@ static void FindSequence(const std::string& description)
 	}
 }
 
-static void FindDiffs()
+template <typename T>
+static void EmitCharacter(T c, bool ascii)
 {
-	if (_imageStack.empty())
+	if (ascii)
+	{
+		if (c < 32)
+			c = '_';
+		std::cout << c << " ";
+	}
+	else
+	{
+		std::cout << (int)c << " ";
+	}
+}
+
+static void FindDiffs(bool ascii)
+{
+	if (_imageStack.size() < 2)
 		return;
 
-	//TODO: using off the shelf diff lib proved rather compute expensive...
+	if (_selectedRegionBase == NoRegionSelected)
+	{
+		std::cout << "Must have selected a region to do this\n";
+	}
+
+	const auto& RegionsOfTarget = _imageStack.back().Regions;
+	const auto targetRegion = std::find_if(RegionsOfTarget.cbegin(), RegionsOfTarget.cend(), [](const Region& r)
+	{
+		return r.Base == _selectedRegionBase;
+	});
+	const auto& RegionsOfSource = _imageStack[_imageStack.size() - 2].Regions;
+	const auto sourceRegion = std::find_if(RegionsOfSource.cbegin(), RegionsOfSource.cend(), [](const Region& r)
+	{
+		return r.Base == _selectedRegionBase;
+	});
+
+	dtl::Diff<uint8_t> diff(sourceRegion->Data, targetRegion->Data);
+	diff.enableHuge();
+	diff.compose();
+	diff.composeUnifiedHunks();
+
+	for (const auto& hunk : diff.getUniHunks())
+	{
+		std::cout << "@@"
+			<< " -" << hunk.a << "," << hunk.b
+			<< " +" << hunk.c << "," << hunk.d
+			<< " @@" << std::endl;
+
+		for (const auto& se : hunk.common[0])
+		{
+			EmitCharacter(se.first, ascii);
+		}
+
+		auto lastType = dtl::SES_COMMON;
+
+		for (const auto& se : hunk.change)
+		{
+			switch (se.second.type) {
+			case dtl::SES_ADD:
+				if (lastType != se.second.type)
+					std::cout << std::endl << SES_MARK_ADD;
+				EmitCharacter(se.first, ascii);
+				break;
+			case dtl::SES_DELETE:
+				if (lastType != se.second.type)
+					std::cout << std::endl << SES_MARK_DELETE;
+				EmitCharacter(se.first, ascii);
+				break;
+			case dtl::SES_COMMON:
+				if (lastType != se.second.type)
+					std::cout << std::endl;
+				EmitCharacter(se.first, ascii);
+				break;
+			}
+
+			lastType = se.second.type;
+		}
+		std::cout << std::endl;
+
+		for (const auto& se : hunk.common[1])
+		{
+			EmitCharacter(se.first, ascii);
+		}
+		std::cout << std::endl;
+	}
 }
 
 int main()
@@ -320,8 +441,10 @@ int main()
 	std::cout << "BinExplorer commands:\n";
 	std::cout << "loadb" << std::endl;
 	std::cout << "loads" << std::endl;
+	std::cout << "selr" << std::endl;
 	std::cout << "finds" << std::endl;
-	std::cout << "diff" << std::endl;
+	std::cout << "diffb" << std::endl;
+	std::cout << "diffs" << std::endl;
 	std::cout << "push" << std::endl;
 	std::cout << "pop" << std::endl;
 	std::cout << "cls" << std::endl;
@@ -361,13 +484,21 @@ int main()
 		{
 			LoadBinaryFile(arg, true);
 		}
+		else if (command == "selr")
+		{
+			SelectRegion(arg);
+		}
 		else if (command == "finds")
 		{
 			FindSequence(arg);
 		}
-		else if (command == "diff")
+		else if (command == "diffb")
 		{
-			FindDiffs();
+			FindDiffs(false);
+		}
+		else if (command == "diffs")
+		{
+			FindDiffs(true);
 		}
 		else if (command == "push")
 		{
