@@ -364,7 +364,7 @@ static void EmitCharacter(T c, bool ascii)
 	}
 }
 
-static void FindDiffs(bool ascii)
+static void FindDataDiffs(bool ascii)
 {
 	if (_imageStack.size() < 2)
 		return;
@@ -374,13 +374,13 @@ static void FindDiffs(bool ascii)
 		std::cout << "Must have selected a region to do this\n";
 	}
 
-	const auto& RegionsOfTarget = _imageStack.back().Regions;
-	const auto targetRegion = std::find_if(RegionsOfTarget.cbegin(), RegionsOfTarget.cend(), [](const Region& r)
+	const auto& regionsOfTarget = _imageStack.back().Regions;
+	const auto targetRegion = std::find_if(regionsOfTarget.cbegin(), regionsOfTarget.cend(), [](const Region& r)
 	{
 		return r.Base == _selectedRegionBase;
 	});
-	const auto& RegionsOfSource = _imageStack[_imageStack.size() - 2].Regions;
-	const auto sourceRegion = std::find_if(RegionsOfSource.cbegin(), RegionsOfSource.cend(), [](const Region& r)
+	const auto& regionsOfSource = _imageStack[_imageStack.size() - 2].Regions;
+	const auto sourceRegion = std::find_if(regionsOfSource.cbegin(), regionsOfSource.cend(), [](const Region& r)
 	{
 		return r.Base == _selectedRegionBase;
 	});
@@ -436,6 +436,72 @@ static void FindDiffs(bool ascii)
 	}
 }
 
+static void ShowRegion(const Region& region)
+{
+	std::cout << "Region at " << region.Base << " (length " << region.Data.size() << ")\n";
+
+	uint32_t offset = 0;
+	while (offset < region.Data.size())
+	{
+		if (offset != 0)
+		{
+			std::cout << "Continue (y/n)?> ";
+			char shouldContinue;
+			std::cin >> shouldContinue;
+
+			if (shouldContinue != 'y' && shouldContinue != 'Y')
+			{
+				break;
+			}
+		}
+
+		constexpr uint32_t NEXT = 32;
+		const uint32_t end = std::min(offset + NEXT, region.Data.size());
+		std::cout << "Offset " << offset << " (addr " << (offset + region.Base) << "): ";
+		for (uint32_t i = offset; i < end; ++i)
+		{
+			EmitCharacter(region.Data[i], false);
+		}
+		std::cout << std::endl;
+		std::cout << "Offset " << offset << " (addr " << (offset + region.Base) << "): ";
+		for (uint32_t i = offset; i < end; ++i)
+		{
+			EmitCharacter(region.Data[i], true);
+		}
+		std::cout << std::endl;
+		offset += NEXT;
+	}
+}
+
+static void FindRegionDiffs()
+{
+	if (_imageStack.size() < 2)
+		return;
+
+	const std::vector<Region>& regionsOfTarget = _imageStack.back().Regions;
+	const std::vector<Region>& regionsOfSource = _imageStack[_imageStack.size() - 2].Regions;
+
+	auto checkForAdditions = [](const std::vector<Region>& a, const std::vector<Region>& b, const char* doesNotExistIn)
+	{
+		for (const Region& region : a)
+		{
+			const bool found = ContainsIf(b, [&](const Region& other)
+			{
+				return other.Base == region.Base;
+			});
+
+			if (!found)
+			{
+				std::cout << "Region at " << region.Base << " does not exist in " << doesNotExistIn << std::endl;
+				ShowRegion(region);
+			}
+		}
+	};
+	
+	checkForAdditions(regionsOfSource, regionsOfTarget, "new");
+	checkForAdditions(regionsOfTarget, regionsOfSource, "old");
+}
+
 int main()
 {
 	std::cout << "BinExplorer commands:\n";
@@ -445,6 +511,7 @@ int main()
 	std::cout << "finds" << std::endl;
 	std::cout << "diffb" << std::endl;
 	std::cout << "diffs" << std::endl;
+	std::cout << "diffr" << std::endl;
 	std::cout << "push" << std::endl;
 	std::cout << "pop" << std::endl;
 	std::cout << "cls" << std::endl;
@@ -494,11 +561,15 @@ int main()
 		}
 		else if (command == "diffb")
 		{
-			FindDiffs(false);
+			FindDataDiffs(false);
 		}
 		else if (command == "diffs")
 		{
-			FindDiffs(true);
+			FindDataDiffs(true);
+		}
+		else if (command == "diffr")
+		{
+			FindRegionDiffs();
 		}
 		else if (command == "push")
 		{

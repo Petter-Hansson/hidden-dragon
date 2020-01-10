@@ -105,6 +105,7 @@ process_iterator_destroy(struct process_iterator *i)
 
 struct region_iterator {
 	uintptr_t base;
+	uintptr_t actualBase;
 	size_t size;
 	unsigned long flags;
 
@@ -126,6 +127,7 @@ region_iterator_next(struct region_iterator *i)
 			if (info->State == MEM_COMMIT) {
 				i->size = info->RegionSize;
 				i->base = (uintptr_t)info->AllocationBase;
+				i->actualBase = (uintptr_t)info->BaseAddress;
 				switch (info->AllocationProtect) {
 				case PAGE_EXECUTE:
 					i->flags |= REGION_ITERATOR_EXECUTE;
@@ -1332,9 +1334,9 @@ void DumpMemory(std::ostream& binaryStream, bool segmented)
 
 	for (; !region_iterator_done(it); region_iterator_next(it))
 	{
-		if (it->flags != (REGION_ITERATOR_READ | REGION_ITERATOR_WRITE))
+		if (it->flags & REGION_ITERATOR_EXECUTE)
 		{
-			continue; //only interested in data memory
+			continue; //not interested in program code
 		}
 
 		const char *buf = (const char*)region_iterator_memory(it);
@@ -1342,7 +1344,7 @@ void DumpMemory(std::ostream& binaryStream, bool segmented)
 		{
 			if (segmented)
 			{
-				const uint32_t base = it->base;
+				const uint32_t base = it->actualBase;
 				const uint32_t size = it->size;
 				binaryStream.write(reinterpret_cast<const char*>(&base), 4);
 				binaryStream.write(reinterpret_cast<const char*>(&size), 4);
