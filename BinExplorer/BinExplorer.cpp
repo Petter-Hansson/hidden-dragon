@@ -24,6 +24,196 @@ constexpr uint32_t NoRegionSelected = std::numeric_limits<uint32_t>::max();
 static std::vector<Image> _imageStack;
 static uint32_t _selectedRegionBase = NoRegionSelected;
 
+namespace
+{
+	struct Match
+	{
+		int Index = 0;
+		int Score = 0;
+		const Region* pRegion = nullptr;
+		const std::vector<uint8_t>* pWorkBuffer = nullptr;
+
+		bool operator<(const Match& rhs) const
+		{
+			return Score < rhs.Score;
+		}
+	};
+
+	class SequenceMatching
+	{
+	public:
+		void TryToMatchSequenceWithRegion(const std::vector<uint8_t>& sequence, const Region& region)
+		{
+			const std::vector<uint8_t>& workBuffer = region.Data;
+
+			TryToMatchSequence(sequence, workBuffer, &region);
+		}
+
+		void TryToMatchSequenceWithDiff(const std::vector<uint8_t>& sequence, const dtl::Diff<uint8_t>& diff)
+		{
+			_WorkBuffers.emplace_back(new std::vector<uint8_t>);
+			std::vector<uint8_t>& workBuffer = *_WorkBuffers.back();
+
+			for (const auto& hunk : diff.getUniHunks())
+			{
+				for (const auto& se : hunk.change)
+				{
+					switch (se.second.type) {
+					case dtl::SES_ADD:
+					case dtl::SES_DELETE:
+					case dtl::SES_COMMON:
+						workBuffer.push_back(se.first);
+						break;
+					}
+				}
+			}
+
+			TryToMatchSequence(sequence, workBuffer);
+		}
+
+		void DisplayMatches(const std::vector<uint8_t>& sequence)
+		{
+			std::cout << _Matches.size() << " partial matches stored\n";
+
+			int wrap = 0;
+			while (!_Matches.empty())
+			{
+				std::cout << std::endl;
+				const Match match = _Matches.top();
+				_Matches.pop();
+
+			RestartMatchEmit:
+				std::cout << "Match at " << match.Index << "[";
+				if (match.pRegion)
+					std::cout << match.pRegion->Base;
+				else
+					std::cout << "???";
+				std::cout << "] of score " << match.Score << "/" << sequence.size() << std::endl;
+
+				EmitMatchSequence(sequence, match, wrap, [](const uint8_t value)
+				{
+					return (int)value;
+				});
+				EmitMatchSequence(sequence, match, wrap, [](const uint8_t value)
+				{
+					if (value < 32)
+						return '_';
+					return (char)value;
+				});
+
+				std::cout << "Continue (y/n/x)?> ";
+				char shouldContinue;
+				std::cin >> shouldContinue;
+				if (shouldContinue == 'x') //extra
+				{
+					std::cout << "Amount of wrap? ";
+					std::cin >> wrap;
+
+					goto RestartMatchEmit;
+				}
+
+				if (shouldContinue != 'y' && shouldContinue != 'Y')
+				{
+					break;
+				}
+			}
+		}
+	private:
+		std::priority_queue<Match> _Matches;
+		int _WorstMatchScore = 0;
+		int _BestMatchScore = 0;
+		int _NumWorst = std::numeric_limits<int>::max();
+		std::vector<std::unique_ptr<std::vector<uint8_t>>> _WorkBuffers;
+
+		void TryToMatchSequence(const std::vector<uint8_t>& sequence, const std::vector<uint8_t>& workBuffer, const Region* region = nullptr)
+		{
+			if (sequence.size() > workBuffer.size())
+			{
+				return;
+			}
+
+			for (int i = 0, n = workBuffer.size() - sequence.size() + 1; i < n; ++i)
+			{
+				int matchScore = 0;
+				for (int j = 0; j < (int)sequence.size(); ++j)
+				{
+					if (workBuffer[i + j] == sequence[j])
+					{
+						matchScore += 1;
+					}
+				}
+
+				if (matchScore > 0)
+				{
+					AddMatch(matchScore, i, &workBuffer, region);
+				}
+			}
+		}
+
+		void AddMatch(int matchScore, int index, const std::vector<uint8_t>* workBuffer, const Region* region = nullptr)
+		{
+			//basic complexity limiter to avoid filling memory like hell
+			//it would be preferable to get rid of worst matches to keep max size, but no point spending el mucho time
+			_BestMatchScore = std::max(_BestMatchScore, matchScore);
+			if (matchScore == _WorstMatchScore)
+			{
+				_NumWorst += 1;
+			}
+			if (matchScore >= _WorstMatchScore && (matchScore < _BestMatchScore || matchScore == 1) && _NumWorst > 25)
+			{
+				_WorstMatchScore += 1;
+				_NumWorst = 0;
+			}
+
+			if (matchScore >= _WorstMatchScore)
+			{
+				Match match;
+				match.Score = matchScore;
+				match.Index = index;
+				match.pRegion = region;
+				match.pWorkBuffer = workBuffer;
+				_Matches.push(match);
+			}
+		}
+
+		template <typename TransformFuncT>
+		static void EmitMatchSequence(const std::vector<uint8_t>& sequence, const Match& match, int wrap, TransformFuncT func)
+		{
+			const std::vector<uint8_t>& workBuffer = *match.pWorkBuffer;
+
+			for (int i = -wrap; i < 0; ++i)
+			{
+				if (i + match.Index < 0)
+					continue;
+				const uint8_t value = workBuffer[i + match.Index];
+
+				std::cout << func(value) << " ";
+			}
+
+			std::cout << ' ';
+
+			for (int i = 0; i < (int)sequence.size(); ++i)
+			{
+				const uint8_t value = workBuffer[i + match.Index];
+
+				std::cout << func(value) << " ";
+			}
+
+			std::cout << ' ';
+
+			for (int i = sequence.size(); i < (int)sequence.size() + wrap; ++i)
+			{
+				if (i + match.Index >= (int)workBuffer.size())
+					continue;
+				const uint8_t value = workBuffer[i + match.Index];
+
+				std::cout << func(value) << " ";
+			}
+			std::cout << std::endl;
+		}
+	};
+}
+
 static void PushNewImage()
 {
 	_imageStack.emplace_back();
@@ -107,21 +297,6 @@ static void LoadBinaryFile(const std::string& filename, bool segmented)
 	is.close();
 }
 
-namespace
-{
-	struct Match
-	{
-		int Index = 0;
-		int Score = 0;
-		const Region* pRegion = nullptr;
-
-		bool operator<(const Match& rhs) const
-		{
-			return Score < rhs.Score;
-		}
-	};
-}
-
 static std::vector<uint8_t> GetByteSequenceFromDescription(const std::string& description)
 {
 	std::vector<uint8_t> sequence;
@@ -173,42 +348,6 @@ static std::vector<uint8_t> GetByteSequenceFromDescription(const std::string& de
 	return sequence;
 }
 
-template <typename TransformFuncT>
-static void EmitMatchSequence(const std::vector<uint8_t>& sequence, const Match& match, int wrap, TransformFuncT func)
-{
-	const std::vector<uint8_t>& workBuffer = match.pRegion->Data;
-
-	for (int i = -wrap; i < 0; ++i)
-	{
-		if (i + match.Index < 0)
-			continue;
-		const uint8_t value = workBuffer[i + match.Index];
-
-		std::cout << func(value) << " ";
-	}
-
-	std::cout << ' ';
-
-	for (int i = 0; i < (int)sequence.size(); ++i)
-	{
-		const uint8_t value = workBuffer[i + match.Index];
-
-		std::cout << func(value) << " ";
-	}
-
-	std::cout << ' ';
-
-	for (int i = sequence.size(); i < (int)sequence.size() + wrap; ++i)
-	{
-		if (i + match.Index >= (int)workBuffer.size())
-			continue;
-		const uint8_t value = workBuffer[i + match.Index];
-
-		std::cout << func(value) << " ";
-	}
-	std::cout << std::endl;
-}
-
 static void SelectRegion(const std::string& description)
 {
 	if (description == "")
@@ -248,14 +387,11 @@ static void FindSequence(const std::string& description)
 	if (_imageStack.empty())
 		return;
 
-	std::vector<uint8_t> sequence = GetByteSequenceFromDescription(description);
+	const std::vector<uint8_t> sequence = GetByteSequenceFromDescription(description);
 
 	//for now, do naive O(_workBuffer.size() * sequence.size()) version. optimize if needed
 
-	std::priority_queue<Match> matches;
-	int worstMatchScore = 0;
-	int bestMatchScore = 0;
-	int numWorst = std::numeric_limits<int>::max();
+	SequenceMatching matching;
 	for (const Region& region : _imageStack.back().Regions)
 	{
 		const std::vector<uint8_t>& workBuffer = region.Data;
@@ -265,88 +401,10 @@ static void FindSequence(const std::string& description)
 			continue;
 		}
 
-		if (sequence.size() > workBuffer.size())
-		{
-			continue;
-		}
-
-		for (int i = 0, n = workBuffer.size() - sequence.size() + 1; i < n; ++i)
-		{
-			int matchScore = 0;
-			for (int j = 0; j < (int)sequence.size(); ++j)
-			{
-				if (workBuffer[i + j] == sequence[j])
-				{
-					matchScore += 1;
-				}
-			}
-
-			if (matchScore > 0)
-			{
-				//basic complexity limiter to avoid filling memory like hell
-				//it would be preferable to get rid of worst matches to keep max size, but no point spending el mucho time
-				bestMatchScore = std::max(bestMatchScore, matchScore);
-				if (matchScore == worstMatchScore)
-				{
-					numWorst += 1;
-				}
-				if (matchScore >= worstMatchScore && (matchScore < bestMatchScore || matchScore == 1) && numWorst > 25)
-				{
-					worstMatchScore += 1;
-					numWorst = 0;
-				}
-
-				if (matchScore >= worstMatchScore)
-				{
-					Match match;
-					match.Score = matchScore;
-					match.Index = i;
-					match.pRegion = &region;
-					matches.push(match);
-				}
-			}
-		}
+		matching.TryToMatchSequenceWithRegion(sequence, region);
 	}
 	
-	std::cout << matches.size() << " partial matches stored\n";
-
-	int wrap = 0;
-	while (!matches.empty())
-	{
-		std::cout << std::endl;
-		const Match match = matches.top();
-		matches.pop();
-
-		RestartMatchEmit:
-		std::cout << "Match at " << match.Index << "[" << match.pRegion->Base << "] of score " << match.Score << "/" << sequence.size() << std::endl;
-
-		EmitMatchSequence(sequence, match, wrap, [](const uint8_t value)
-		{
-			return (int)value;
-		});
-		EmitMatchSequence(sequence, match, wrap, [](const uint8_t value)
-		{
-			if (value < 32)
-				return '_';
-			return (char)value;
-		});
-
-		std::cout << "Continue (y/n/x)?> ";
-		char shouldContinue;
-		std::cin >> shouldContinue;
-		if (shouldContinue == 'x') //extra
-		{
-			std::cout << "Amount of wrap? ";
-			std::cin >> wrap;
-
-			goto RestartMatchEmit;
-		}
-			
-		if (shouldContinue != 'y' && shouldContinue != 'Y')
-		{
-			break;
-		}
-	}
+	matching.DisplayMatches(sequence);
 }
 
 template <typename T>
@@ -364,7 +422,18 @@ static void EmitCharacter(T c, bool ascii)
 	}
 }
 
-static void FindDataDiffs(bool ascii)
+template<typename RegionPointerT>
+static dtl::Diff<uint8_t> CalcDiffsOfRegion(RegionPointerT sourceRegion, RegionPointerT targetRegion)
+{
+	dtl::Diff<uint8_t> diff(sourceRegion->Data, targetRegion->Data);
+	diff.enableHuge();
+	diff.compose();
+	diff.composeUnifiedHunks();
+
+	return diff;
+}
+
+static void ShowDataDiffs(bool ascii)
 {
 	if (_imageStack.size() < 2)
 		return;
@@ -385,10 +454,9 @@ static void FindDataDiffs(bool ascii)
 		return r.Base == _selectedRegionBase;
 	});
 
-	dtl::Diff<uint8_t> diff(sourceRegion->Data, targetRegion->Data);
-	diff.enableHuge();
-	diff.compose();
-	diff.composeUnifiedHunks();
+	std::cout << "Size source/target: " << sourceRegion->Data.size() << "/" << targetRegion->Data.size() << std::endl;
+
+	const auto diff = CalcDiffsOfRegion(sourceRegion, targetRegion);
 
 	for (const auto& hunk : diff.getUniHunks())
 	{
@@ -434,6 +502,77 @@ static void FindDataDiffs(bool ascii)
 		}
 		std::cout << std::endl;
 	}
+}
+
+static void FindSequenceInDiffOfRegion(SequenceMatching& matching, const std::vector<uint8_t>& sequence, const Region& source, const Region& target)
+{
+	if (source.Data.size() == 0)
+		matching.TryToMatchSequenceWithRegion(sequence, target);
+	else if (target.Data.size() == 0)
+		matching.TryToMatchSequenceWithRegion(sequence, source);
+	else
+	{
+		constexpr int maxSize = 3000000;
+		if (source.Data.size() > maxSize)
+		{
+			std::cout << "Too large region to diff: " << source.Data.size() << std::endl;
+			return;
+		}
+		if (target.Data.size() > maxSize)
+		{
+			std::cout << "Too large region to diff: " << target.Data.size() << std::endl;
+			return;
+		}
+
+		std::cout << "will calc diff of sizes " << source.Data.size() << " and " << target.Data.size() << std::endl;
+		const auto diff = CalcDiffsOfRegion(&source, &target);
+
+		matching.TryToMatchSequenceWithDiff(sequence, diff);
+	}
+}
+
+static void FindSequenceInDiffsOfAllRegions(const std::string& description)
+{
+	if (_imageStack.size() < 2)
+		return;
+
+	const std::vector<uint8_t> sequence = GetByteSequenceFromDescription(description);
+
+	const std::vector<Region>& regionsOfTarget = _imageStack.back().Regions;
+	const std::vector<Region>& regionsOfSource = _imageStack[_imageStack.size() - 2].Regions;
+
+	const static Region emptyRegion;
+	SequenceMatching matching;
+
+	for (const Region& region : regionsOfSource)
+	{
+		const auto it = std::find_if(regionsOfTarget.cbegin(), regionsOfTarget.cend(), [&](const Region& other)
+		{
+			return other.Base == region.Base;
+		});
+
+		if (it == regionsOfTarget.cend())
+		{
+			FindSequenceInDiffOfRegion(matching, sequence, region, emptyRegion);
+		}
+		else
+		{
+			FindSequenceInDiffOfRegion(matching, sequence, region, *it);
+		}
+	}
+	for (const Region& region : regionsOfTarget)
+	{
+		const bool found = ContainsIf(regionsOfSource, [&](const Region& other)
+		{
+			return other.Base == region.Base;
+		});
+		if (!found)
+		{
+			FindSequenceInDiffOfRegion(matching, sequence, emptyRegion, region);
+		}
+	}
+
+	matching.DisplayMatches(sequence);
 }
 
 static void ShowRegion(const Region& region)
@@ -559,13 +698,17 @@ int main()
 		{
 			FindSequence(arg);
 		}
+		else if (command == "findd")
+		{
+			FindSequenceInDiffsOfAllRegions(arg);
+		}
 		else if (command == "diffb")
 		{
-			FindDataDiffs(false);
+			ShowDataDiffs(false);
 		}
 		else if (command == "diffs")
 		{
-			FindDataDiffs(true);
+			ShowDataDiffs(true);
 		}
 		else if (command == "diffr")
 		{

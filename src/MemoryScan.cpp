@@ -188,11 +188,14 @@ region_iterator_memory(struct region_iterator *i)
 		i->buf = malloc(i->bufsize);
 	}
 	SIZE_T actual;
-	void *base = (void *)i->base;
-	if (!ReadProcessMemory(i->process, base, i->buf, i->size, &actual))
-		return NULL;
-	else if (actual < i->size)
-		return NULL;
+	void *base = (void *)i->actualBase;
+	const BOOL result = ReadProcessMemory(i->process, base, i->buf, i->size, &actual);
+
+	if (actual > 0 && actual < i->size)
+		i->size = actual;
+	else if (!result)
+		return nullptr;
+ 
 	return i->buf;
 }
 

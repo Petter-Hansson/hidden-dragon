@@ -1206,6 +1206,31 @@ static void OnProgramExit()
 	CoUninitialize();
 }
 
+static BOOL EnableTokenPrivilege(LPCWSTR privilege)
+{
+	HANDLE hToken;
+	TOKEN_PRIVILEGES token_privileges;
+	DWORD dwSize;
+	ZeroMemory(&token_privileges, sizeof(token_privileges));
+	token_privileges.PrivilegeCount = 1;
+	if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &hToken))
+		return FALSE;
+	if (!LookupPrivilegeValue(NULL, privilege, &token_privileges.Privileges[0].Luid))
+	{
+		CloseHandle(hToken);
+		return FALSE;
+	}
+
+	token_privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+	if (!AdjustTokenPrivileges(hToken, FALSE, &token_privileges, 0, NULL, &dwSize))
+	{
+		CloseHandle(hToken);
+		return FALSE;
+	}
+	CloseHandle(hToken);
+	return TRUE;
+}
+
 int main()
 {
 	atexit(OnProgramExit);
@@ -1218,6 +1243,12 @@ int main()
 #endif
 
 	std::cout << "Welcome to Hidden Dragon, a bot for Close Combat 3: Cross of Iron\n";
+
+	if (!EnableTokenPrivilege(SE_DEBUG_NAME))
+	{
+		std::cerr << "Cannot get required privilege: " << GetLastError() << std::endl;
+		return 15;
+	}
 
 	const int result = SetupDirectPlay();
 	if (result != 0)
