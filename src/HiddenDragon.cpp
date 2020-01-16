@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "GameData.hpp"
 #include "MemoryScan.hpp"
 #include "Util.hpp"
 
@@ -17,6 +18,12 @@ enum class GameState
 	Battle
 };
 
+enum class Faction
+{
+	Germans,
+	Russians,
+};
+
 static IDirectPlay* _baseDirectPlay = nullptr;
 static IDirectPlay4A* _directPlay = nullptr;
 static DPSESSIONDESC2 _theSession;
@@ -29,6 +36,31 @@ static std::ofstream _messageFile("HiddenDragonMessages.txt");
 static std::ofstream _sendFile("HiddenDragonSent.txt");
 static Timer _requisitionDumpTimer;
 static int _requisitionDumpCounter;
+
+//it's unfortunately necessary to reverse engineer requisition logic
+static struct RequisitionState
+{
+	int NumSoldiers = 0;
+	SoldierData Soldiers[MaxSoldiersPerSide];
+
+	void CountSoldiers() //until I find memory offset directly
+	{
+		NumSoldiers += 1;
+
+		for (int i = 0; i < MaxSoldiersPerSide; ++i)
+		{
+			const SoldierData& soldier = Soldiers[i];
+
+			if (std::strcmp(soldier.Name, "") == 0 ||
+				std::strcmp(soldier.Name, "Unknown") == 0)
+			{
+				break;
+			}
+
+			NumSoldiers += 1;
+		}
+	}
+} _requisitionState;
 
 #define LOG(x) std::cout << x; _logFile << x
 
@@ -832,6 +864,30 @@ static void SendServerDeploymentData()
 	SendServerTick();
 }
 
+static void ReadConfigMessage(const uint8_t* content)
+{
+	const char* const battle = reinterpret_cast<const char*>(content + 36);
+
+	BattleFileData battleData;
+	const std::string filename = GetAttachedPathPrefix() + "Data\\BATTLES\\" + battle;
+	std::ifstream is(filename, std::ios::binary);
+	if (is.fail())
+		std::cerr << "Failed to open " << filename << " for reading\n";
+	is.read(reinterpret_cast<char*>(&battleData), sizeof(battleData));
+	if (is.fail())
+		std::cerr << "Error reading battle data struct!!!\n";
+	//TODO: would be best to quit here on error perhaps
+	is.close();
+	battleData.CheckAssumptions();
+
+	//TODO: figure out how to detect who we are playing, for now assume bot is Russians
+
+	std::memcpy(_requisitionState.Soldiers, battleData.RussianSoldiers, sizeof(_requisitionState.Soldiers));
+	_requisitionState.CountSoldiers();
+	LOG("Loaded " << _requisitionState.NumSoldiers << " soldiers from battle file " << battle << std::endl);
+	LOG("The first is " << _requisitionState.Soldiers[0].Name << std::endl);
+}
+
 static void OnSystemMessageReceived(DPID toPlayer, const DPMSG_GENERIC* sysMessage)
 {
 	_logFile << "Sys message " << GetSysMessageString(sysMessage->dwType) << " to player " << toPlayer << std::endl;
@@ -890,6 +946,7 @@ static void OnGameMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vec
 	}
 
 	const DWORD userMessageType = *(const DWORD*)messageBuffer.data();
+	const uint8_t* const messageContent = messageBuffer.data() + 4;
 	bool printToLog = true;
 	if (userMessageType == 10 && IsClient())
 		printToLog = true;
@@ -986,6 +1043,12 @@ static void OnGameMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vec
 		}
 		break;
 	}
+	case 19:
+		if (IsClient())
+		{
+			ReadConfigMessage(messageContent);
+		}
+		break;
 	}
 }
 

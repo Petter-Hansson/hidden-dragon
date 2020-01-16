@@ -35,6 +35,7 @@
 #include <memory>
 #include <mutex>
 #include <objbase.h>
+#include <psapi.h>
 #include <stdexcept>
 #include <string>
 #include <tuple>

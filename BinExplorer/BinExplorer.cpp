@@ -1,31 +1,32 @@
 
 #include "pch.h"
 
+#include "GameData.hpp"
 #include "Util.hpp"
-
-struct Region
-{
-	std::vector<uint8_t> Data;
-	uint32_t Base = 0;
-};
-
-struct Image
-{
-	std::vector<Region> Regions;
-
-	bool IsEmpty() const
-	{
-		return Regions.empty();
-	}
-};
-
-constexpr uint32_t NoRegionSelected = std::numeric_limits<uint32_t>::max();
-
-static std::vector<Image> _imageStack;
-static uint32_t _selectedRegionBase = NoRegionSelected;
 
 namespace
 {
+	struct Region
+	{
+		std::vector<uint8_t> Data;
+		int32_t Base = 0; //we use signed base because dump automatically subtracts an offset to account for address randomization
+	};
+
+	struct Image
+	{
+		std::vector<Region> Regions;
+
+		bool IsEmpty() const
+		{
+			return Regions.empty();
+		}
+	};
+
+	constexpr uint32_t NoRegionSelected = std::numeric_limits<uint32_t>::max();
+
+	static std::vector<Image> _imageStack;
+	static uint32_t _selectedRegionBase = NoRegionSelected;
+
 	struct Match
 	{
 		int Index = 0;
@@ -49,7 +50,7 @@ namespace
 			TryToMatchSequence(sequence, workBuffer, &region);
 		}
 
-		void TryToMatchSequenceWithDiff(const std::vector<uint8_t>& sequence, const dtl::Diff<uint8_t>& diff)
+		void TryToMatchSequenceWithDiff(const std::vector<uint8_t>& sequence, const dtl::Diff<uint8_t>& diff, const Region& fromRegion)
 		{
 			_WorkBuffers.emplace_back(new std::vector<uint8_t>);
 			std::vector<uint8_t>& workBuffer = *_WorkBuffers.back();
@@ -68,7 +69,7 @@ namespace
 				}
 			}
 
-			TryToMatchSequence(sequence, workBuffer);
+			TryToMatchSequence(sequence, workBuffer, &fromRegion);
 		}
 
 		void DisplayMatches(const std::vector<uint8_t>& sequence)
@@ -512,6 +513,8 @@ static void FindSequenceInDiffOfRegion(SequenceMatching& matching, const std::ve
 		matching.TryToMatchSequenceWithRegion(sequence, source);
 	else
 	{
+		assert(source.Base == target.Base);
+
 		constexpr int maxSize = 3000000;
 		if (source.Data.size() > maxSize)
 		{
@@ -524,10 +527,9 @@ static void FindSequenceInDiffOfRegion(SequenceMatching& matching, const std::ve
 			return;
 		}
 
-		std::cout << "will calc diff of sizes " << source.Data.size() << " and " << target.Data.size() << std::endl;
 		const auto diff = CalcDiffsOfRegion(&source, &target);
 
-		matching.TryToMatchSequenceWithDiff(sequence, diff);
+		matching.TryToMatchSequenceWithDiff(sequence, diff, source);
 	}
 }
 

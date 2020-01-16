@@ -1271,6 +1271,7 @@ quit:
 
 static memdig _instance;
 static bool _instanceInited;
+static std::string _processFilename;
 bool AttachToCloseCombat()
 {
 	if (_instanceInited)
@@ -1301,15 +1302,42 @@ bool AttachToCloseCombat()
 	}
 	else
 	{
+		char filename[MAX_PATH + 1];
+		const DWORD filenameLength = GetModuleFileNameExA(_instance.target, nullptr, filename, MAX_PATH + 1);
+		if (filenameLength == 0)
+		{
+			std::cerr << "Failed to get filename of CC3.exe: " << os_last_error() << std::endl;
+		}
+		else
+		{
+			retval = true;
+			_processFilename = filename;
+		}
+
 		watchlist_init(&_instance.active, _instance.target);
 		watchlist_init(&_instance.locked, _instance.target);
 		std::cout << "Attached to CC3.exe\n";
-
-		retval = true;
 	}
 	os_mutex_unlock(&_instance.thread);
 
 	return retval;
+}
+
+const std::string& GetAttachedFilename()
+{
+	return _processFilename;
+}
+
+std::string GetAttachedPathPrefix()
+{
+	auto offset = _processFilename.find_last_of('\\');
+	if (offset == std::string::npos)
+	{
+		std::cerr << "Warning: Unexpected lack of folder path separator in " << _processFilename << std::endl;
+		return ".\\";
+	}
+
+	return _processFilename.substr(0, offset + 1);
 }
 
 void DetachFromCloseCombat()
@@ -1330,8 +1358,11 @@ void DetachFromCloseCombat()
 	os_thread_join(&_instance.thread);
 }
 
-void DumpMemory(std::ostream& binaryStream, bool segmented)
+static uint32_t FindSharedOffset(const char* magic)
 {
+	uint32_t sharedOffset = 0;
+	const std::size_t len = std::strlen(magic);
+
 	region_iterator it[1];
 	region_iterator_init(it, _instance.target);
 
@@ -1342,12 +1373,57 @@ void DumpMemory(std::ostream& binaryStream, bool segmented)
 			continue; //not interested in program code
 		}
 
-		const char *buf = (const char*)region_iterator_memory(it);
+		const char* const buf = (const char*)region_iterator_memory(it);
+		if (buf)
+		{
+			std::size_t offset = 0;
+			std::size_t remaining = it->size;
+			while (remaining >= len)
+			{
+				if (std::memcmp(buf + offset, magic, len) == 0)
+				{
+					sharedOffset = static_cast<uint32_t>(it->actualBase + offset);
+					goto End;
+				}
+
+				offset += 1;
+				remaining -= 1;
+			}
+			
+		}
+	}
+	End:
+	region_iterator_destroy(it);
+
+	if (sharedOffset == 0)
+	{
+		std::cerr << "Unable to find shared offset " << magic << std::endl;
+	}
+
+	return sharedOffset;
+}
+
+
+void DumpMemory(std::ostream& binaryStream, bool segmented)
+{
+	const uint32_t sharedOffset = FindSharedOffset("Close Combat: Cross of Iron");
+
+	region_iterator it[1];
+	region_iterator_init(it, _instance.target);
+
+	for (; !region_iterator_done(it); region_iterator_next(it))
+	{
+		if (it->flags & REGION_ITERATOR_EXECUTE)
+		{
+			continue; //not interested in program code
+		}
+
+		const char* buf = (const char*)region_iterator_memory(it);
 		if (buf)
 		{
 			if (segmented)
 			{
-				const uint32_t base = it->actualBase;
+				const uint32_t base = it->actualBase - sharedOffset; //fine, reader can interpret as signed
 				const uint32_t size = it->size;
 				binaryStream.write(reinterpret_cast<const char*>(&base), 4);
 				binaryStream.write(reinterpret_cast<const char*>(&size), 4);
