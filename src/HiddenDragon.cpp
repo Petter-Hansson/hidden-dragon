@@ -260,8 +260,28 @@ static void LogDirectPlayMessage(DPID fromPlayer, DPID toPlayer, const std::vect
 	_messageFile.flush();
 }
 
+static void SendFlee()
+{
+	LOG("Fleeing!\n");
+	if (IsClient())
+	{
+		//SendDirectPlayMessage("8 0 0 0 1 0 0 0 ");
+	}
+	else
+	{
+		SendDirectPlayMessage("24 0 0 0 8 205 107 2 ");
+		SendDirectPlayMessage("24 0 0 0 247 205 107 2 ");
+		SendDirectPlayMessage("14 0 0 0 12 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 1 0 255 255 255 0 0 0 0 5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 0 0 0 0 0 2 0 3 0 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
+		SendDirectPlayMessage("25 0 0 0 ");
+		SendDirectPlayMessage("16 0 0 0 5 0 0 0 0 0 1 36 0 0 1 151 ");
+	}
+}
+
 static void SetGameState(GameState newState)
 {
+	if (newState == _gameState)
+		return;
+
 	LOG("Switching game state from " << GetGameStateString(_gameState) << " to " << GetGameStateString(newState) << std::endl);
 
 	_gameState = newState;
@@ -269,7 +289,7 @@ static void SetGameState(GameState newState)
 
 static void SendClientUnitData()
 {
-	LOG("Sending client data");
+	LOG("Sending client data\n");
 
 	std::vector<uint8_t> message;
 	InformalByteWriter writer(message);
@@ -923,14 +943,26 @@ static void SendClientTick()
 
 static void SendServerDeploymentData()
 {
+	LOG("Sending deployment data\n");
 	SendDirectPlayMessage("24 0 0 0 254 205 96 2 ");
 	SendDirectPlayMessage("37 0 0 0 ");
 	SendDirectPlayMessage("24 0 0 0 0 205 96 2 ");
 	SendServerTick();
 }
 
+static void SendServerFleeData()
+{
+	LOG("Sending flee data\n");
+	SendDirectPlayMessage("60 0 0 0 161 0 0 0 59 0 0 0 8 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 4 0 0 0 213 0 0 0 0 0 0 0 59 0 0 0 8 0 1 0 0 0 0 0 2 0 0 32 0 0 0 0 6 0 0 0 171 1 0 0 33 2 0 0 0 0 59 0 0 0 9 0 1 0 0 0 0 0 2 0 0 0 0 0 0 0 4 0 0 0 167 1 0 0 0 0 0 0 58 0 0 0 7 0 1 0 0 0 0 133 4 0 0 0 10 0 0 0 1 66 0 0 0 68 0 0 0 2 0 0 0 0 59 0 0 0 9 0 1 0 0 0 0 4 0 0 0 0 0 0 0 0 1 0 0 0 3 0 0 0 0 0 0 0 0 ");
+	//SendDirectPlayMessage("55 0 0 0 15 0 25 0 ");
+	//SendDirectPlayMessage("16 0 0 0 1 0 0 0 0 0 1 48 0 0 1 166 ");
+	//SendDirectPlayMessage("49 0 0 0 6 0 25 0 ");
+}
+
 static void ReadConfigMessage(const uint8_t* content)
 {
+	_requisitionState = RequisitionState();
+
 	const char* const battle = reinterpret_cast<const char*>(content + 36);
 
 	BattleFileData battleData;
@@ -981,6 +1013,8 @@ static void OnSystemMessageReceived(DPID toPlayer, const DPMSG_GENERIC* sysMessa
 
 			//ready up!
 			SendDirectPlayMessage("55 0 0 0 5 0 25 0");
+
+			AttachToCloseCombat();
 		}
 		break;
 	}
@@ -1044,7 +1078,7 @@ static void OnGameMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vec
 		{
 			SendServerDeploymentData();
 
-			_gameState = GameState::Battle;
+			SetGameState(GameState::Battle);
 		}
 		break;
 	}
@@ -1096,7 +1130,26 @@ static void OnGameMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vec
 		}
 		break;
 	}
-	case 61:
+	case 8:
+	{
+		if (IsServer() && _gameState == GameState::Battle)
+		{
+			static int cntr = 0;
+			if (cntr == 40)
+			{
+				LOG("SENDING DEBUG FLEE\n");
+				SendFlee();
+				break;
+			}
+			else if (cntr > 40)
+				break;
+
+			//server tick
+			SendServerTick();
+		}
+		break;
+	}
+	case 10:
 	{
 		if (IsClient() && _gameState == GameState::Deployment)
 		{
@@ -1104,7 +1157,7 @@ static void OnGameMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vec
 			SendDirectPlayMessage("6 0 0 0 0 67 73 0 ");
 			SendDirectPlayMessage("6 0 0 0 2 67 73 0 ");
 
-			_gameState = GameState::Battle;
+			SetGameState(GameState::Battle);
 		}
 		break;
 	}
@@ -1112,6 +1165,23 @@ static void OnGameMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vec
 		if (IsClient())
 		{
 			ReadConfigMessage(messageContent);
+		}
+		break;
+	case 60:
+		if (IsClient())
+		{
+			//respond to server flee data
+			//SendDirectPlayMessage("3 0 0 0 0 13 0 0 ");
+			//SendDirectPlayMessage("17 0 0 0 6 0 73 0 ");
+		}
+		break;
+	case 25:
+		if (IsClient())
+		{
+			//respond to server flee initiation
+			LOG("Server is fleeing\n");
+			SendDirectPlayMessage("3 0 0 0 0 9 97 0");
+			SendDirectPlayMessage("3 0 0 0 0 10 0 1");
 		}
 		break;
 	}
@@ -1386,7 +1456,7 @@ int main()
 		return result;
 	}
 
-	if (!AttachToCloseCombat())
+	if (IsClient() && !AttachToCloseCombat())
 	{
 		std::cerr << "This is a critical error, bot won't be able to function without reading CC3.exe process memory.\n";
 		return 12;
