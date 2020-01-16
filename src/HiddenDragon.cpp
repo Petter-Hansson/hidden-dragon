@@ -184,6 +184,20 @@ static BOOL FAR PASCAL DirectPlayEnumHandler(LPCDPSESSIONDESC2 lpThisSD,
 	return true;
 }
 
+static void LogMessageContent(std::ostream& stream, const uint8_t* data, std::size_t len)
+{
+	for (std::size_t i = 0; i < len; ++i)
+	{
+		const uint8_t value = data[i];
+		stream << (int)value << ' ';
+	}
+}
+
+static void LogMessageContent(std::ostream& stream, const std::vector<uint8_t>& messageBuffer)
+{
+	LogMessageContent(stream, messageBuffer.data(), messageBuffer.size());
+}
+
 static void SendDirectPlayMessage(const uint8_t* data, std::size_t len)
 {
 	DPID toPlayer = DPID_SERVERPLAYER;
@@ -194,34 +208,29 @@ static void SendDirectPlayMessage(const uint8_t* data, std::size_t len)
 
 	_directPlay->Send(_localPlayer, toPlayer, DPSEND_GUARANTEED, (LPVOID)data, len);
 
-	//TODO: offer logging consistent with string messages
+	_sendFile << "SendDirectPlayMessage(\"";
+	LogMessageContent(_sendFile, data, len);
+	_sendFile << "\");" << std::endl;
+	_sendFile.flush();
+}
+
+static void SendDirectPlayMessage(const std::vector<uint8_t>& data)
+{
+	SendDirectPlayMessage(data.data(), data.size());
 }
 
 static void SendDirectPlayMessage(const char* byteStream)
 {
 	std::vector<uint8_t> fields;
-	Split(byteStream, ' ', [ & ](const char* data, std::size_t len)
-	{
-		fields.push_back(atoi(data));
-	});
+	InformalByteWriter writer(fields);
+	writer.WriteDescription(byteStream);
 
 	SendDirectPlayMessage(fields.data(), fields.size());
-
-	_sendFile << "SendDirectPlayMessage(\"" << byteStream << "\");" << std::endl;
-	_sendFile.flush();
 }
 
 static void SendDirectPlayMessage(const std::string& str)
 {
 	SendDirectPlayMessage(str.c_str());
-}
-
-static void LogMessageContent(std::ostream& stream, const std::vector<uint8_t>& messageBuffer)
-{
-	for (const uint8_t value : messageBuffer)
-	{
-		stream << (int)value << ' ';
-	}
 }
 
 static void LogDirectPlayMessage(DPID fromPlayer, DPID toPlayer, const std::vector<uint8_t>& messageBuffer)
@@ -258,8 +267,64 @@ static void SetGameState(GameState newState)
 	_gameState = newState;
 }
 
-//unfortunately a lot of data we must figure out and send
 static void SendClientUnitData()
+{
+	LOG("Sending client data");
+
+	std::vector<uint8_t> message;
+	InformalByteWriter writer(message);
+
+	const int numSoldiers = _requisitionState.NumSoldiers;
+	const int numTeams = 10; //TODO:
+
+	message.clear();
+	writer.WriteDescription("18 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
+	writer.WriteBytes((uint16_t)numTeams);
+	writer.WriteBytes((uint16_t)numSoldiers);
+	writer.WriteDescription(" 1 231 9 0 ");
+	SendDirectPlayMessage(message);
+
+	for (int i = 0; i < numSoldiers; ++i)
+	{
+		const SoldierData& soldier = _requisitionState.Soldiers[i];
+		message.clear();
+		writer.WriteBytes((uint32_t)22);
+		writer.WriteBytes((uint32_t)i);
+		writer.WriteBytes((uint16_t)i);
+		writer.WriteBytes((uint8_t)0);
+		writer.WriteString(soldier.Name, sizeof(soldier.Name));
+		writer.WriteDescription(" 2 1 2 236 0 0 0 23 1 0 0 26 1 0 0 0 1 0 0 22 1 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 ");
+		SendDirectPlayMessage(message);
+	}
+
+	//message 23 might be vehicle list, unfortunately a bit hard to confirm on default scenario
+	//second last field of message 23 is 9, which is added to by 1 when sniper is added
+	SendDirectPlayMessage("23 0 0 0 0 0 0 0 0 0 52 53 109 109 32 80 114 111 116 105 118 46 32 79 114 117 100 105 101 32 111 98 114 46 51 50 47 51 56 0 68 0 0 0 0 0 0 0 0 231 9 0 ");
+
+	//messages 24 specifies a team
+	//first two big endian DWORDS seem to be duplicated team indices like for soldiers
+	//teams seem to be inserted into the order they are displayed in the game
+	//most diffs (not spelling them out here) seem to be soldier indices
+	//expecting there to be a row index into RUTeams.txt, but a bit unsure if GETeams.txt and RUTeams.txt are somehow appended into one
+	SendDirectPlayMessage("24 0 0 0 0 0 0 0 0 0 0 71 114 111 117 112 32 76 101 97 100 101 114 0 255 255 255 255 0 0 0 0 157 14 73 0 79 0 0 0 1 0 2 0 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 105 27 1 0 0 3 1 0 0 8 0 111 98 27 1 0 0 0 51 0 0 0 0 0 0 ");
+	SendDirectPlayMessage("24 0 0 0 1 0 0 0 1 0 0 76 77 71 32 73 110 102 97 110 116 114 121 0 255 255 255 255 0 0 0 0 157 14 73 0 22 0 3 0 4 0 5 0 9 0 10 0 11 0 6 0 7 0 8 0 12 0 255 105 221 0 0 0 213 0 0 0 11 0 111 98 221 0 0 0 0 51 0 0 0 0 0 0 ");
+	SendDirectPlayMessage("24 0 0 0 2 0 0 0 2 0 0 76 77 71 32 73 110 102 97 110 116 114 121 0 255 255 255 255 0 0 0 0 157 14 73 0 22 0 13 0 14 0 16 0 17 0 18 0 19 0 22 0 20 0 21 0 15 0 255 105 225 0 0 0 216 0 0 0 11 0 111 98 225 0 0 0 0 51 0 0 0 0 0 0 ");
+	SendDirectPlayMessage("24 0 0 0 3 0 0 0 3 0 0 76 105 103 104 116 32 73 110 102 97 110 116 114 121 0 255 255 0 0 0 0 157 14 73 0 7 0 23 0 24 0 25 0 28 0 30 0 31 0 29 0 27 0 26 0 32 0 255 105 216 0 0 0 207 0 0 0 9 0 111 98 216 0 0 0 0 51 0 0 0 0 0 0 ");
+	SendDirectPlayMessage("24 0 0 0 4 0 0 0 4 0 0 76 105 103 104 116 32 73 110 102 97 110 116 114 121 0 255 255 0 0 0 0 157 14 73 0 7 0 33 0 34 0 36 0 37 0 38 0 39 0 42 0 40 0 41 0 35 0 255 105 221 0 0 0 212 0 0 0 9 0 111 98 221 0 0 0 0 51 0 0 0 0 0 0 ");
+	SendDirectPlayMessage("24 0 0 0 5 0 0 0 5 0 0 76 105 103 104 116 32 73 110 102 97 110 116 114 121 0 255 255 0 0 0 0 157 14 73 0 7 0 43 0 44 0 45 0 47 0 50 0 51 0 49 0 46 0 48 0 52 0 255 105 215 0 0 0 206 0 0 0 9 0 111 98 215 0 0 0 0 51 0 0 0 0 0 0 ");
+	SendDirectPlayMessage("24 0 0 0 6 0 0 0 6 0 0 77 77 71 32 84 101 97 109 0 97 110 116 114 121 0 255 255 0 0 0 0 157 14 73 0 4 0 53 0 55 0 54 0 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 105 9 1 0 0 1 1 0 0 7 0 111 98 9 1 0 0 0 51 0 0 0 0 0 0 ");
+	SendDirectPlayMessage("24 0 0 0 7 0 0 0 7 0 0 52 53 109 109 32 65 84 32 71 117 110 0 114 121 0 255 255 0 0 0 0 157 14 73 0 33 0 56 0 57 0 59 0 58 0 255 255 255 255 255 255 255 255 255 255 255 255 0 105 243 0 0 0 235 0 0 0 17 0 111 98 243 0 0 0 0 51 0 0 0 0 0 0 ");
+	SendDirectPlayMessage("24 0 0 0 8 0 0 0 8 0 0 56 50 109 109 32 77 111 114 116 97 114 0 114 121 0 255 255 0 0 0 0 157 14 73 0 6 0 60 0 61 0 62 0 63 0 255 255 255 255 255 255 255 255 255 255 255 255 255 105 231 0 0 0 226 0 0 0 10 0 111 98 231 0 0 0 0 51 0 0 0 0 0 0 ");
+
+	//these messages don't appear to change on adding a team
+	SendDirectPlayMessage("17 0 0 0 12 0 73 0 ");
+	SendDirectPlayMessage("21 0 0 0 ");
+	SendDirectPlayMessage("17 0 0 0 10 0 73 0 ");
+	SendDirectPlayMessage("6 0 0 0 254 67 73 0 ");
+}
+
+//unfortunately a lot of data we must figure out and send
+static void SendClientUnitDataExample()
 {
 	//last fields of message 18 here are "10 0 64 0 1 231 9 0"
 	//where 10 = requisition points remaining
@@ -341,7 +406,7 @@ static void SendClientUnitData()
 	SendDirectPlayMessage("22 0 0 0 62 0 0 0 62 0 0 76 105 115 99 104 101 110 107 111 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 2 0 146 0 0 0 62 1 0 0 219 0 0 0 220 0 0 0 220 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 8 0 0 0 ");
 	SendDirectPlayMessage("22 0 0 0 63 0 0 0 63 0 0 65 104 109 97 100 111 118 0 111 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 70 3 0 142 0 0 0 62 1 0 0 231 0 0 0 213 0 0 0 213 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 9 0 0 0 ");
 	
-	//message 23 might be vehicle list, unfortunately a bit hard to confirm on default scenario
+	//message 23 might be vehicle team list, unfortunately a bit hard to confirm on default scenario
 	//second last field of message 23 is 9, which is added to by 1 when sniper is added
 	SendDirectPlayMessage("23 0 0 0 0 0 0 0 0 0 52 53 109 109 32 80 114 111 116 105 118 46 32 79 114 117 100 105 101 32 111 98 114 46 51 50 47 51 56 0 68 0 0 0 0 0 0 0 0 231 9 0 ");
 	
@@ -885,7 +950,7 @@ static void ReadConfigMessage(const uint8_t* content)
 	std::memcpy(_requisitionState.Soldiers, battleData.RussianSoldiers, sizeof(_requisitionState.Soldiers));
 	_requisitionState.CountSoldiers();
 	LOG("Loaded " << _requisitionState.NumSoldiers << " soldiers from battle file " << battle << std::endl);
-	LOG("The first is " << _requisitionState.Soldiers[0].Name << std::endl);
+	LOG("The first soldier is " << _requisitionState.Soldiers[0].Name << std::endl);
 }
 
 static void OnSystemMessageReceived(DPID toPlayer, const DPMSG_GENERIC* sysMessage)
@@ -1300,6 +1365,8 @@ int main()
 	CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
 	_logFile.rdbuf()->pubsetbuf(0, 0);
+	_messageFile.rdbuf()->pubsetbuf(0, 0);
+	_sendFile.rdbuf()->pubsetbuf(0, 0);
 
 #ifndef NDEBUG
 	HookKeyboard();

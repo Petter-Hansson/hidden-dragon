@@ -25,21 +25,82 @@ bool ContainsIf(const CollectionT& collection, FuncT func)
 }
 
 template <typename FuncT>
-void Split(const char *str, char sep, FuncT func)
+void Split(const char *str, char separator, FuncT func)
 {
-	//adapted from http://www.martinbroadhurst.com/split-a-string-in-c.html
-	//C++ should have a standard split anyway for when you're not overly concerned about perf...
-	unsigned int start = 0, stop;
-	for (stop = 0; str[stop]; stop++)
+	int start = 0;
+	int stop = 0;
+	bool hadContent = false;
+	for (; str[stop]; ++stop)
 	{
-		if (str[stop] == sep)
+		const char c = str[stop];
+		if (c == separator)
 		{
-			func(str + start, stop - start);
+			if (hadContent)
+				func(str + start, stop - start - 1);
 			start = stop + 1;
+			hadContent = false;
+		}
+		else
+		{
+			hadContent = true;
 		}
 	}
-	func(str + start, stop - start);
+
+	if (hadContent)
+		func(str + start, stop - start);
 }
+
+class InformalByteWriter
+{
+public:
+	explicit InformalByteWriter(std::vector<uint8_t>& underlying)
+		: _Underlying(underlying)
+	{
+	}
+
+	template <typename T>
+	void WriteBytes(const T& element)
+	{
+		const uint8_t* const bytes = reinterpret_cast<const uint8_t*>(&element);
+		for (int i = 0; i < sizeof(element); ++i)
+		{
+			_Underlying.push_back(bytes[i]);
+		}
+	}
+
+	void WriteString(const char* str, std::size_t len)
+	{
+		for (std::size_t i = 0; i < len; ++i)
+		{
+			_Underlying.push_back(str[i]);
+		}
+	}
+
+	void WriteString(const char* str)
+	{
+		WriteString(str, std::strlen(str));
+	}
+
+	void WriteString(const std::string& str)
+	{
+		WriteString(str.c_str(), str.size());
+	}
+
+	void WriteDescription(const char* sequence)
+	{
+		Split(sequence, ' ', [&](const char* data, std::size_t len)
+		{
+			_Underlying.push_back(atoi(data));
+		});
+	}
+
+	void WriteDescription(const std::string& str)
+	{
+		WriteDescription(str.c_str());
+	}
+private:
+	std::vector<uint8_t>& _Underlying;
+};
 
 enum class PathType
 {
