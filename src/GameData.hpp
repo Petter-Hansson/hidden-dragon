@@ -21,7 +21,9 @@ struct SoldierData
 	uint8_t IsGerman; //not 100% sure
 	uint8_t MustBeZero2;
 	char Name[26]; //will be "Unknown" on unused entry
-	uint8_t Unknown[148 - 4 - sizeof(Name)];
+	uint8_t Field1[3];
+	uint8_t Field2[3];
+	uint8_t Unknown[148 - 4 - sizeof(Name) - sizeof(Field1) - sizeof(Field2)];
 
 	void CheckAssumptions()
 	{
@@ -39,7 +41,8 @@ struct VehicleData
 	uint8_t IsGerman; //not 100% sure
 	uint8_t MustBeZero2;
 	char Name[30]; //will be "Unknown" on unused entry
-	uint8_t Unknown[84 - 4 - sizeof(Name)];
+	uint8_t Type;
+	uint8_t Unknown[84 - 4 - sizeof(Name) - sizeof(Type)];
 
 	void CheckAssumptions()
 	{

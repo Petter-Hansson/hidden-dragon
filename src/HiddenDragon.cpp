@@ -4,11 +4,40 @@
 #include "MemoryScan.hpp"
 #include "Util.hpp"
 
-
-constexpr bool AS_SERVER = false; //fake server for tricking client
-
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
+
+
+namespace
+{
+	class TimedDump
+	{
+	public:
+		explicit TimedDump(const char* prefix) :
+			_Prefix(prefix)
+		{
+		}
+
+		void Dump()
+		{
+			std::ofstream dumpFile(_Prefix + std::to_string(_Counter) + ".bin", std::ios::binary);
+			DumpMemory(dumpFile, true);
+			dumpFile.close();
+			_Timer.Restart();
+			_Counter += 1;
+		}
+
+		double GetElapsed() const
+		{
+			return _Timer.GetElapsed();
+		}
+	private:
+		const char* const _Prefix;
+		int _Counter = 0;
+		Timer _Timer;
+	};
+}
+
 
 static IDirectPlay* _baseDirectPlay = nullptr;
 static IDirectPlay4A* _directPlay = nullptr;
@@ -20,8 +49,8 @@ static bool _running = true;
 std::ofstream _logFile("HiddenDragonLog.txt");
 static std::ofstream _messageFile("HiddenDragonMessages.txt");
 static std::ofstream _sendFile("HiddenDragonSent.txt");
-static Timer _requisitionDumpTimer;
-static int _requisitionDumpCounter;
+static TimedDump _requisitionDump("req");
+static TimedDump _deploymentDump("dep");
 
 static const char* GetErrorString(HRESULT hr)
 {
@@ -126,7 +155,7 @@ static BOOL FAR PASCAL DirectPlayEnumHandler(LPCDPSESSIONDESC2 lpThisSD,
 	return true;
 }
 
-static void LogMessageContent(std::ostream& stream, const uint8_t* data, std::size_t len)
+void LogMessageContent(std::ostream& stream, const uint8_t* data, std::size_t len)
 {
 	for (std::size_t i = 0; i < len; ++i)
 	{
@@ -135,7 +164,7 @@ static void LogMessageContent(std::ostream& stream, const uint8_t* data, std::si
 	}
 }
 
-static void LogMessageContent(std::ostream& stream, const std::vector<uint8_t>& messageBuffer)
+void LogMessageContent(std::ostream& stream, const std::vector<uint8_t>& messageBuffer)
 {
 	LogMessageContent(stream, messageBuffer.data(), messageBuffer.size());
 }
@@ -222,14 +251,7 @@ static void OnSystemMessageReceived(DPID toPlayer, const DPMSG_GENERIC* sysMessa
 
 		if (IsServer())
 		{
-			//greeting
-			SendDirectPlayMessage("48 0 0 0 67 79 73 51 46 54 32 50 48 49 49 48 49 50 52 48 49 0 0 0 0 0 0 0 0 0 0 0 32 0 204 0 203 15 12 0 243 223 2 0 25 240 11 0 182 168 14 0 71 199 57 0 79 170 48 0 ");
-
-			//config
-			SendDirectPlayMessage("19 0 0 0 0 1 0 1 0 3 0 0 3 3 0 0 0 0 0 0 0 0 1 1 1 0 1 1 80 70 0 0 0 0 0 0 0 0 0 0 68 45 68 97 121 32 82 117 115 115 105 97 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 68 45 68 97 121 32 82 117 115 115 105 97 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 3 3 4 4 0 0 95 0 0 0 95 0 0 0 0 0 0 0 0 0 0 0 68 114 97 103 111 110 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 80 101 116 116 101 114 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 76 118 111 118 49 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 10 0 0 0 50 0 0 0 50 0 0 0 10 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
-
-			//ready up!
-			SendDirectPlayMessage("55 0 0 0 5 0 25 0");
+			SendFakeServerSetup();
 
 			AttachToCloseCombat();
 		}
@@ -241,15 +263,6 @@ static void OnSystemMessageReceived(DPID toPlayer, const DPMSG_GENERIC* sysMessa
 		break;
 	}
 	}
-}
-
-static void TimedDump(const std::string& prefix, int& counter, Timer& timer)
-{
-	std::ofstream dumpFile(prefix + std::to_string(counter) + ".bin", std::ios::binary);
-	DumpMemory(dumpFile, true);
-	dumpFile.close();
-	timer.Restart();
-	counter += 1;
 }
 
 static void OnDirectPlayMessageReceived(DPID fromPlayer, DPID toPlayer, const std::vector<uint8_t>& messageBuffer)
@@ -350,7 +363,7 @@ static int SetupDirectPlay()
 	{
 		std::cout << "The bot will automatically join your game after a few seconds once hosted.\n";
 		std::cout << "Cross of Iron tends to crash when I tab out so I don't recommend doing that.\n";
-		std::cout << "You can leave the dialog box field blank to search the local network.";
+		std::cout << "You can leave the dialog box field blank to search the local network.\n";
 		DPSESSIONDESC2 sessionDesc;
 		std::memset(&sessionDesc, 0, sizeof(sessionDesc));
 		sessionDesc.dwSize = sizeof(sessionDesc);
@@ -396,6 +409,8 @@ static int SetupDirectPlay()
 		_logFile << "Running bot as client\n";
 
 		SendDirectPlayMessage("20 0 0 0 6 0 0 0 4 0 0 0 1 0 0 0 ");
+
+		//version message
 		SendDirectPlayMessage("16 0 0 0 67 79 73 51 46 54 32 50 48 49 49 48 49 50 52 48 49 0 64 0 0 0 0 0 216 17 0 0 190 0 119 136 203 15 12 0 243 223 2 0 25 240 11 0 182 168 14 0 71 199 57 0 79 170 48 0 ");
 	}
 
@@ -404,16 +419,21 @@ static int SetupDirectPlay()
 
 void DumpRequisition()
 {
-	TimedDump("req", _requisitionDumpCounter, _requisitionDumpTimer);
+	_requisitionDump.Dump();
+}
+
+void DumpDeployment()
+{
+	_deploymentDump.Dump();
 }
 
 static void OnMainLoop()
 {
 	if (IsClient() && GetGameState() == GameState::Requisition)
 	{
-		if (_requisitionDumpTimer.GetElapsed() > 15)
+		if (_requisitionDump.GetElapsed() > 15)
 		{
-			TimedDump("req", _requisitionDumpCounter, _requisitionDumpTimer);
+			_requisitionDump.Dump();
 		}
 	}
 }

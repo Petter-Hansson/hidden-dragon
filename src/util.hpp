@@ -68,12 +68,17 @@ public:
 		}
 	}
 
-	void WriteString(const char* str, std::size_t len)
+	void WriteBytes(const uint8_t* str, std::size_t len)
 	{
 		for (std::size_t i = 0; i < len; ++i)
 		{
 			_Underlying.push_back(str[i]);
 		}
+	}
+
+	void WriteString(const char* str, std::size_t len)
+	{
+		WriteBytes(reinterpret_cast<const uint8_t*>(str), len);
 	}
 
 	void WriteString(const char* str)
