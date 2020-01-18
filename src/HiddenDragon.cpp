@@ -43,9 +43,15 @@ static struct RequisitionState
 	int NumSoldiers = 0;
 	SoldierData Soldiers[MaxSoldiersPerSide];
 
+	int NumVehicles = 0;
+	VehicleData Vehicles[MaxVehiclesPerSide];
+
+	int NumTeams = 0;
+	TeamData Teams[MaxTeamsPerSide];
+
 	void CountSoldiers() //until I find memory offset directly
 	{
-		NumSoldiers += 1;
+		NumSoldiers = 0;
 
 		for (int i = 0; i < MaxSoldiersPerSide; ++i)
 		{
@@ -58,6 +64,40 @@ static struct RequisitionState
 			}
 
 			NumSoldiers += 1;
+		}
+	}
+	void CountVehicles() //until I find memory offset directly
+	{
+		NumVehicles = 0;
+
+		for (int i = 0; i < MaxVehiclesPerSide; ++i)
+		{
+			const VehicleData& vehicle = Vehicles[i];
+
+			if (std::strcmp(vehicle.Name, "") == 0 ||
+				std::strcmp(vehicle.Name, "Unknown") == 0)
+			{
+				break;
+			}
+
+			NumVehicles += 1;
+		}
+	}
+	void CountTeams() //until I find memory offset directly
+	{
+		NumTeams = 0;
+
+		for (int i = 0; i < MaxTeamsPerSide; ++i)
+		{
+			const TeamData& team = Teams[i];
+
+			if (std::strcmp(team.Name, "") == 0 ||
+				std::strcmp(team.Name, "Unknown") == 0)
+			{
+				break;
+			}
+
+			NumTeams += 1;
 		}
 	}
 } _requisitionState;
@@ -295,7 +335,8 @@ static void SendClientUnitData()
 	InformalByteWriter writer(message);
 
 	const int numSoldiers = _requisitionState.NumSoldiers;
-	const int numTeams = 10; //TODO:
+	const int numTeams = _requisitionState.NumTeams;
+	const int numVehicles = _requisitionState.NumVehicles;
 
 	message.clear();
 	writer.WriteDescription("18 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
@@ -307,34 +348,62 @@ static void SendClientUnitData()
 	for (int i = 0; i < numSoldiers; ++i)
 	{
 		const SoldierData& soldier = _requisitionState.Soldiers[i];
+
+		auto teamEnd = _requisitionState.Teams + _requisitionState.NumTeams;
+		auto teamIt = std::find_if(_requisitionState.Teams, teamEnd,
+			[=](const TeamData& team)
+		{
+			return Contains(team.Soldiers, team.Soldiers + MaxSoldiersPerTeam, i);
+		});
+		if (teamIt == teamEnd)
+		{
+			std::cerr << "No team link for soldier " << i << " (" << soldier.Name << ")\n";
+			continue;
+		}
+		const auto teamIndex = std::distance(_requisitionState.Teams, teamIt);
+
 		message.clear();
 		writer.WriteBytes((uint32_t)22);
 		writer.WriteBytes((uint32_t)i);
 		writer.WriteBytes((uint16_t)i);
 		writer.WriteBytes((uint8_t)0);
 		writer.WriteString(soldier.Name, sizeof(soldier.Name));
-		writer.WriteDescription(" 2 1 2 236 0 0 0 23 1 0 0 26 1 0 0 0 1 0 0 22 1 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 ");
+		writer.WriteDescription("2 1 2 236 0 0 0 23 1 0 0 26 1 0 0 0 1 0 0 22 1 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
+		writer.WriteBytes((uint32_t)teamIndex); //TODO: this is NOT team index, might be rank but must be verified
 		SendDirectPlayMessage(message);
 	}
 
-	//message 23 might be vehicle list, unfortunately a bit hard to confirm on default scenario
-	//second last field of message 23 is 9, which is added to by 1 when sniper is added
-	SendDirectPlayMessage("23 0 0 0 0 0 0 0 0 0 52 53 109 109 32 80 114 111 116 105 118 46 32 79 114 117 100 105 101 32 111 98 114 46 51 50 47 51 56 0 68 0 0 0 0 0 0 0 0 231 9 0 ");
+	for (int i = 0; i < numVehicles; ++i)
+	{
+		const VehicleData& vehicle = _requisitionState.Vehicles[i];
+		message.clear();
+		writer.WriteBytes((uint32_t)23);
+		writer.WriteBytes((uint32_t)i);
+		writer.WriteBytes((uint16_t)i);
+		writer.WriteString(vehicle.Name, sizeof(vehicle.Name));
+		writer.WriteDescription("68 0 0 0 0 0 0 0 0 231 9 0 ");
+		SendDirectPlayMessage(message);
+	}
 
-	//messages 24 specifies a team
-	//first two big endian DWORDS seem to be duplicated team indices like for soldiers
-	//teams seem to be inserted into the order they are displayed in the game
-	//most diffs (not spelling them out here) seem to be soldier indices
-	//expecting there to be a row index into RUTeams.txt, but a bit unsure if GETeams.txt and RUTeams.txt are somehow appended into one
-	SendDirectPlayMessage("24 0 0 0 0 0 0 0 0 0 0 71 114 111 117 112 32 76 101 97 100 101 114 0 255 255 255 255 0 0 0 0 157 14 73 0 79 0 0 0 1 0 2 0 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 105 27 1 0 0 3 1 0 0 8 0 111 98 27 1 0 0 0 51 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("24 0 0 0 1 0 0 0 1 0 0 76 77 71 32 73 110 102 97 110 116 114 121 0 255 255 255 255 0 0 0 0 157 14 73 0 22 0 3 0 4 0 5 0 9 0 10 0 11 0 6 0 7 0 8 0 12 0 255 105 221 0 0 0 213 0 0 0 11 0 111 98 221 0 0 0 0 51 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("24 0 0 0 2 0 0 0 2 0 0 76 77 71 32 73 110 102 97 110 116 114 121 0 255 255 255 255 0 0 0 0 157 14 73 0 22 0 13 0 14 0 16 0 17 0 18 0 19 0 22 0 20 0 21 0 15 0 255 105 225 0 0 0 216 0 0 0 11 0 111 98 225 0 0 0 0 51 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("24 0 0 0 3 0 0 0 3 0 0 76 105 103 104 116 32 73 110 102 97 110 116 114 121 0 255 255 0 0 0 0 157 14 73 0 7 0 23 0 24 0 25 0 28 0 30 0 31 0 29 0 27 0 26 0 32 0 255 105 216 0 0 0 207 0 0 0 9 0 111 98 216 0 0 0 0 51 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("24 0 0 0 4 0 0 0 4 0 0 76 105 103 104 116 32 73 110 102 97 110 116 114 121 0 255 255 0 0 0 0 157 14 73 0 7 0 33 0 34 0 36 0 37 0 38 0 39 0 42 0 40 0 41 0 35 0 255 105 221 0 0 0 212 0 0 0 9 0 111 98 221 0 0 0 0 51 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("24 0 0 0 5 0 0 0 5 0 0 76 105 103 104 116 32 73 110 102 97 110 116 114 121 0 255 255 0 0 0 0 157 14 73 0 7 0 43 0 44 0 45 0 47 0 50 0 51 0 49 0 46 0 48 0 52 0 255 105 215 0 0 0 206 0 0 0 9 0 111 98 215 0 0 0 0 51 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("24 0 0 0 6 0 0 0 6 0 0 77 77 71 32 84 101 97 109 0 97 110 116 114 121 0 255 255 0 0 0 0 157 14 73 0 4 0 53 0 55 0 54 0 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 105 9 1 0 0 1 1 0 0 7 0 111 98 9 1 0 0 0 51 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("24 0 0 0 7 0 0 0 7 0 0 52 53 109 109 32 65 84 32 71 117 110 0 114 121 0 255 255 0 0 0 0 157 14 73 0 33 0 56 0 57 0 59 0 58 0 255 255 255 255 255 255 255 255 255 255 255 255 0 105 243 0 0 0 235 0 0 0 17 0 111 98 243 0 0 0 0 51 0 0 0 0 0 0 ");
-	SendDirectPlayMessage("24 0 0 0 8 0 0 0 8 0 0 56 50 109 109 32 77 111 114 116 97 114 0 114 121 0 255 255 0 0 0 0 157 14 73 0 6 0 60 0 61 0 62 0 63 0 255 255 255 255 255 255 255 255 255 255 255 255 255 105 231 0 0 0 226 0 0 0 10 0 111 98 231 0 0 0 0 51 0 0 0 0 0 0 ");
+	for (int i = 0; i < numTeams; ++i)
+	{
+		const TeamData& team = _requisitionState.Teams[i];
+		message.clear();
+		writer.WriteBytes((uint32_t)24);
+		writer.WriteBytes((uint32_t)i);
+		writer.WriteBytes((uint16_t)i);
+		writer.WriteBytes((uint8_t)0);
+		writer.WriteString(team.Name, 12); //TODO: see why 13 != 26
+		writer.WriteBytes((uint8_t)0); //null terminator of above
+		writer.WriteDescription("255 255 255 255 0 0 0 0 157 14 73 0 ");
+		writer.WriteBytes((uint8_t)team.Type);
+		writer.WriteBytes((uint8_t)0);
+		for (int i = 0; i < MaxSoldiersPerTeam; ++i)
+			writer.WriteBytes((uint16_t)team.Soldiers[i]);
+		writer.WriteBytes((uint8_t)team.VehicleIndex);
+		writer.WriteDescription("105 27 1 0 0 3 1 0 0 8 0 111 98 27 1 0 0 0 51 0 0 0 0 0 0 ");
+		SendDirectPlayMessage(message);
+	}
 
 	//these messages don't appear to change on adding a team
 	SendDirectPlayMessage("17 0 0 0 12 0 73 0 ");
@@ -433,8 +502,8 @@ static void SendClientUnitDataExample()
 	//messages 24 specifies a team
 	//first two big endian DWORDS seem to be duplicated team indices like for soldiers
 	//teams seem to be inserted into the order they are displayed in the game
-	//most diffs (not spelling them out here) seem to be soldier indices
 	//expecting there to be a row index into RUTeams.txt, but a bit unsure if GETeams.txt and RUTeams.txt are somehow appended into one
+	//suspect e.g. substring "33 0 34 0 36 0 37 0 38 0 39 0 42 0 40 0 41 0 35 0" below are soldier indices
 	SendDirectPlayMessage("24 0 0 0 0 0 0 0 0 0 0 71 114 111 117 112 32 76 101 97 100 101 114 0 255 255 255 255 0 0 0 0 157 14 73 0 79 0 0 0 1 0 2 0 255 255 255 255 255 255 255 255 255 255 255 255 255 255 255 105 27 1 0 0 3 1 0 0 8 0 111 98 27 1 0 0 0 51 0 0 0 0 0 0 ");
 	SendDirectPlayMessage("24 0 0 0 1 0 0 0 1 0 0 76 77 71 32 73 110 102 97 110 116 114 121 0 255 255 255 255 0 0 0 0 157 14 73 0 22 0 3 0 4 0 5 0 9 0 10 0 11 0 6 0 7 0 8 0 12 0 255 105 221 0 0 0 213 0 0 0 11 0 111 98 221 0 0 0 0 51 0 0 0 0 0 0 ");
 	SendDirectPlayMessage("24 0 0 0 2 0 0 0 2 0 0 76 77 71 32 73 110 102 97 110 116 114 121 0 255 255 255 255 0 0 0 0 157 14 73 0 22 0 13 0 14 0 16 0 17 0 18 0 19 0 22 0 20 0 21 0 15 0 255 105 225 0 0 0 216 0 0 0 11 0 111 98 225 0 0 0 0 51 0 0 0 0 0 0 ");
@@ -983,6 +1052,16 @@ static void ReadConfigMessage(const uint8_t* content)
 	_requisitionState.CountSoldiers();
 	LOG("Loaded " << _requisitionState.NumSoldiers << " soldiers from battle file " << battle << std::endl);
 	LOG("The first soldier is " << _requisitionState.Soldiers[0].Name << std::endl);
+
+	std::memcpy(_requisitionState.Vehicles, battleData.RussianVehicles, sizeof(_requisitionState.Vehicles));
+	_requisitionState.CountVehicles();
+	LOG("Loaded " << _requisitionState.NumVehicles << " vehicles from battle file " << battle << std::endl);
+	LOG("The first vehicle is " << _requisitionState.Vehicles[0].Name << std::endl);
+
+	std::memcpy(_requisitionState.Teams, battleData.RussianTeams, sizeof(_requisitionState.Teams));
+	_requisitionState.CountTeams();
+	LOG("Loaded " << _requisitionState.NumTeams << " teams from battle file " << battle << std::endl);
+	LOG("The first team is " << _requisitionState.Teams[0].Name << std::endl);
 }
 
 static void OnSystemMessageReceived(DPID toPlayer, const DPMSG_GENERIC* sysMessage)
