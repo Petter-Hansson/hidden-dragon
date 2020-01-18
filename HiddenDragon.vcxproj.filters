@@ -27,6 +27,9 @@
     <ClInclude Include="src\GameData.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\HiddenDragon.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\HiddenDragon.cpp">
@@ -39,6 +42,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\Util.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\BotCommunication.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

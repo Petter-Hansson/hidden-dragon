@@ -164,11 +164,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="src\GameData.hpp" />
+    <ClInclude Include="src\HiddenDragon.hpp" />
     <ClInclude Include="src\MemoryScan.hpp" />
     <ClInclude Include="src\pch.h" />
     <ClInclude Include="src\Util.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\BotCommunication.cpp" />
     <ClCompile Include="src\HiddenDragon.cpp" />
     <ClCompile Include="src\MemoryScan.cpp" />
     <ClCompile Include="src\pch.cpp">
